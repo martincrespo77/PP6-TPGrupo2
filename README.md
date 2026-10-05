@@ -4,6 +4,36 @@ Trabajo Práctico Integrador – **Paradigmas de Programación VI**
 **Cátedra:** FIE – 5to Año – Ingeniería en Informática  
 **Stack Tecnológico:** Java, Spring Boot, JPA/Hibernate, API REST, Cliente Web, Extensión de Navegador.
 
+**Producción:** https://paradigmas6.agustingimenez.ar · **Staging:** http://localhost:8080
+
+---
+
+## ⚙️ Compilar y ejecutar
+
+Requisitos: **Java 21**. No hace falta instalar Gradle: se usa el wrapper (`gradlew`).
+
+| Acción | Linux / macOS | Windows |
+| :--- | :--- | :--- |
+| Compilar + tests | `./gradlew build` | `gradlew.bat build` |
+| Levantar en **staging** (perfil por defecto) | `./gradlew bootRun` | `gradlew.bat bootRun` |
+| Generar el JAR | `./gradlew bootJar` → `build/libs/shortener.jar` | `gradlew.bat bootJar` |
+
+En staging la app queda en http://localhost:8080, con HSQLDB en modo archivo (`./data/`, ignorado por git) y Swagger en http://localhost:8080/swagger-ui.html.
+
+En **producción** se usa el perfil `prod`, y la base se configura por variables de entorno (ver `.env.example`):
+
+```bash
+SPRING_PROFILES_ACTIVE=prod DB_URL=... DB_USER=... DB_PASSWORD=... java -jar shortener.jar
+```
+
+| Archivo | Contenido |
+| :--- | :--- |
+| `application.properties` | Común: TTL del enlace, largo y alfabeto del alias, perfil por defecto |
+| `application-staging.properties` | `localhost:8080`, HSQLDB archivo, SQL visible |
+| `application-prod.properties` | Dominio HTTPS, base por variables de entorno, proxy (`forward-headers-strategy`) |
+
+La bitácora de cada paso está en [`docs/BITACORA.md`](docs/BITACORA.md).
+
 ---
 
 ## 👥 Equipo de Trabajo
