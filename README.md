@@ -42,24 +42,20 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 1
 powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1
 ```
 
-## 🔁 Ciclo de cada paso (ramas de entrega)
+## 🔁 Ciclo de cada paso
 
-Cada integrante trabaja siempre en su rama `dev/<nombre>`. Al cerrar un paso se crea una **rama de entrega** `paso/<N>` que apunta al último commit de ese paso, y el pull request va desde esa rama a `main`. Así cada PR contiene un solo paso y no crece con el trabajo que sigue.
+Cada integrante trabaja siempre en su rama `dev/<nombre>`, un commit por paso (o varios), y lo integra a `main` con **un pull request `dev/<nombre>` → `main`**.
 
 ```text
-dev/agustin ──●──●──●──●──●──●──▶ (se sigue trabajando)
-                    │        │
-                 paso/0-1  paso/2      ← ramas de entrega (congeladas)
-                    │        │
-                    ▼        ▼
-main ───────────────●────────●──────▶  (solo lo aprobado)
+dev/agustin ──●──●──●──●──●──▶   (paso 0, 1, 2… cada uno con sus commits)
+                         │
+                    PR → main     (lo aprueba otro integrante)
 ```
 
 1. Construir el paso en `dev/<nombre>` (tests, mutaciones, entrada en `docs/BITACORA.md`) y hacer push.
-2. Crear la rama de entrega: `git branch paso/<N> <commit>` y `git push -u origin paso/<N>`.
-3. Abrir el PR `paso/<N>` → `main` con el resumen, las evidencias y el checklist de la revisora.
-4. Revisa y aprueba **otro integrante** (quien construye no acepta, `contexto.md` §19). Si pide cambios, se hacen en `dev/<nombre>` y se actualiza la rama de entrega.
-5. Se mergea a `main` y se actualiza `dev/<nombre>` con `git fetch origin` + `git merge origin/main`.
+2. Si no hay un PR abierto, abrir uno `dev/<nombre>` → `main`. Si ya hay uno abierto, los commits nuevos se suman solos.
+3. Revisa y aprueba **otro integrante** (quien construye no acepta, `contexto.md` §19). Si pide cambios, se hacen en la misma rama.
+4. Se mergea a `main` y se actualiza la rama con `git fetch origin` + `git merge origin/main`.
 
 ---
 
