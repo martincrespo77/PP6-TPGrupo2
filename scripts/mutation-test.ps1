@@ -41,7 +41,23 @@ $mutations = @(
      Tests = '*FixedTtlExpirationPolicyTest*' },
   @{ Step = 2; Id = 'CLK'; File = "$src/config/ClockConfig.java"
      From = 'Clock.tick(Clock.systemUTC(), Duration.ofMillis(1))'; To = 'Clock.systemUTC()'
-     Tests = '*ClockConfigTest*' }
+     Tests = '*ClockConfigTest*' },
+  @{ Step = 3; Id = 'I2-retry'; File = "$src/application/ShortenLinkService.java"
+     From = 'log.debug("Alias {} tomado por otra'; To = 'if (true) throw e; log.debug("Alias {} tomado por otra'
+     Tests = '*ShortenLinkServiceTest*' },
+  @{ Step = 3; Id = 'I4'; File = "$src/application/LinkUrls.java"
+     From = 'return baseUrl + "/" + alias;'
+     To = 'return org.springframework.web.servlet.support.ServletUriComponentsBuilder.fromCurrentContextPath().toUriString() + "/" + alias;'
+     Tests = '*LinkApiControllerTest*' },
+  @{ Step = 3; Id = 'D13'; File = "$src/application/ShortenLinkService.java"
+     From = 'if (linkUrls.shortUrl(alias).equals(url)) {'; To = 'if (false) {'
+     Tests = '*ShortenLinkServiceTest*' },
+  @{ Step = 3; Id = 'D6'; File = "$src/application/ShortenLinkService.java"
+     From = 'repository.deleteByAlias(alias);'; To = ''
+     Tests = '*ShortenLinkServiceTest*' },
+  @{ Step = 3; Id = 'D11'; File = "$src/application/ShortenLinkService.java"
+     From = 'attempt <= maxAttempts'; To = 'attempt < maxAttempts'
+     Tests = '*ShortenLinkServiceTest*' }
 )
 
 $survivors = 0

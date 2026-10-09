@@ -503,3 +503,135 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 2    # 
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Ir creando pull request y yo seguir trabajando en mi rama dev/agustin solo, pero ir dejando el historial de commits y pull request, sigamos" | Ramas de entrega `paso/N` + PR documentados en el README; Paso 2 con TDD: 3 puertos, 3 estrategias, `Clock` truncado, 6 mutaciones | El test de puerto 99999 detectó que `java.net.URI` no limita el puerto (corregido); se truncó en el `Clock` y no en la política (justificado arriba) |
+| "Pero ¿por qué creás tantas ramas? Hacé todo en dev/agustin y que alguien apruebe para ir a main" | Se borraron `paso/0-1` y `paso/2` (no tenían PRs y sus commits ya estaban en `dev/agustin`); README simplificado a un PR `dev/<nombre>` → `main` | Antes de borrar se verificó con la API de GitHub que no hubiera PRs y con `git merge-base --is-ancestor` que no se perdiera ningún commit |
+
+---
+
+## Paso 3 – Crear enlaces: `POST /api/v1/links` (09/10/2026)
+
+**Estado:** completo en local y en el VPS, pendiente **A** (aceptación de Sofía).
+
+### Objetivo
+Primer endpoint real: recibe una URL y devuelve el enlace corto con su vencimiento. Junta las piezas de los Pasos 1 y 2 en un caso de uso (`ShortenLinkService`) y define el formato de errores de toda la API (ProblemDetail). Es el Paso 3 de `contexto.md` §16 y §18.4 y cubre el requerimiento 1 de la consigna (API REST).
+
+### Estado ANTERIOR
+Dominio, persistencia (Paso 1) y estrategias (Paso 2) probados por separado. No había ningún endpoint: `application`, `web/api` y `web/error` solo tenían su `package-info.java`.
+
+### Qué es NUEVO
+| Archivo | Acción | Para qué sirve |
+|---|---|---|
+| `application/ShortenLinkService.java` | nuevo | Caso de uso: valida, genera alias con reintentos (D6, D11, D13, I2) y guarda |
+| `application/LinkUrls.java` | nuevo | Arma `shortUrl` y `qrUrl` **siempre** desde `app.base-url` (I4, D23) |
+| `domain/exception/AliasUnavailableException.java` | nuevo | Se agotaron los 10 intentos (D11) → 503 |
+| `web/api/LinkApiController.java` | nuevo | `POST /api/v1/links` → `201 Created` + header `Location`, documentado en Swagger |
+| `web/api/ShortenRequest.java` / `ShortLinkResponse.java` | nuevos | DTOs del contrato §10.1; la entidad nunca sale por la API (D28) |
+| `web/error/GlobalExceptionHandler.java` | nuevo | Errores en ProblemDetail: 400 (URL inválida o JSON mal formado) y 503 con `Retry-After` |
+| `ShortenLinkServiceTest`, `LinkApiControllerTest`, `LinkUrlsTest` | nuevos | 19 tests (ver tabla abajo) |
+| `support/ScriptedAliasGenerator.java` (test) | nuevo | Generador de test que devuelve alias forzados, para provocar colisiones a voluntad |
+
+### Qué se MODIFICÓ y por qué
+Solo `scripts/mutation-test.ps1` (5 mutaciones del Paso 3). Nada del código de los pasos anteriores cambió: el caso de uso se armó **solo con las interfaces** que ya existían.
+
+### Cómo funciona (explicado simple)
+```text
+POST /api/v1/links {"url": "..."}
+  └─ LinkApiController ─▶ ShortenLinkService.shorten(url)
+                             1. UrlValidator.validate(url)          ✗ → 400 (nada se guarda)
+                             2. now = clock.instant()
+                             3. hasta 10 veces:
+                                  alias = AliasGenerator.generate()
+                                  ¿shortUrl(alias) == url? → otro alias        (D13)
+                                  ── transacción NUEVA ──────────────────────
+                                  ¿existe y vigente?  → otro alias             (I2)
+                                  ¿existe y vencido?  → se borra               (D6)
+                                  persist(alias, url, now, now + 60 min)
+                                  PK duplicada (otro pedido ganó) → otro alias (I2)
+                                  ───────────────────────────────────────────
+                             4. 10 fallidos → 503                              (D11)
+  ◀─ 201 Created + Location + JSON (shortUrl armada desde app.base-url)
+```
+Respuesta real (con `app.base-url=https://sho.rt` y reloj fijo, del test TC-61):
+```json
+{ "alias": "xt3se", "shortUrl": "https://sho.rt/xt3se",
+  "originalUrl": "https://drive.google.com/drive/folders/1a2b3c4d5e6f7g8h9?usp=sharing",
+  "createdAt": "2026-10-08T12:00:00Z", "expiresAt": "2026-10-08T13:00:00Z",
+  "secondsRemaining": 3600, "qrUrl": "https://sho.rt/api/v1/links/xt3se/qr" }
+```
+Error (ProblemDetail, `Content-Type: application/problem+json`):
+```json
+{ "type": "about:blank", "title": "URL inválida", "status": 400,
+  "detail": "La dirección debe empezar con http:// o https://", "instance": "/api/v1/links" }
+```
+
+### Decisiones de diseño
+- **Una transacción por intento, no una para todo el método** (cierra la "Nota para el Paso 3"): si otro pedido toma el alias al mismo tiempo, la base rechaza el INSERT y Hibernate deja la sesión inutilizable. Por eso `shorten` **no** es `@Transactional`: cada intento abre la suya con `TransactionTemplate`. El fallo se descarta y el siguiente intento empieza limpio.
+- **Primero `findByAlias`, después `persist`:** la lectura sirve para dos cosas, saltear un alias vigente sin provocar un error y detectar un vencido que el cron todavía no borró (D6). La garantía contra carreras sigue siendo la clave primaria: la lectura sola no alcanza, y TC-31 lo prueba.
+- **`LinkUrls` aparte:** la regla "las URLs públicas salen de `app.base-url`" está en un solo lugar y la usan el servicio (D13), la respuesta y el QR (Paso 5).
+- **`ShortenRequest` sin `@NotBlank`/`@Pattern`:** si estuviera, habría dos fuentes de reglas y mensajes. Todo lo decide `UrlValidator`, así la API, la web y la extensión reciben el mismo texto.
+- **El handler de errores se limita a la API** (`basePackageClasses = LinkApiController.class`): el redirect del Paso 4 tiene que responder una página HTML de 404, no JSON.
+- **`503` con `Retry-After: 1`:** le dice al cliente que reintente en un segundo. Agotar 10 intentos con 28,6 millones de alias posibles solo pasaría con la base casi llena o por un error.
+- **`Location: <shortUrl>`** en el 201: es lo que el estándar HTTP pide para "recurso creado".
+- **`secondsRemaining`** se calcula con el mismo `Clock` (D24). Al crear, da exactamente 3600.
+
+#### ⚠️ Recordatorio del desvío del Paso 1
+`contexto.md` (D32, I2, §15.4) dice "reintento ante `DataIntegrityViolationException`". El servicio reintenta ante **`AliasAlreadyTakenException`** (motivos en el Paso 1). La mutación "quitar el reintento" de §15.4 se aplicó sobre ese `catch` y TC-31 la detectó.
+
+### Cómo probarlo
+```powershell
+gradlew.bat test                                                              # 76 tests
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 3    # 5 mutaciones
+# A mano, con la app levantada:
+curl.exe -i -X POST http://localhost:8080/api/v1/links -H "Content-Type: application/json" -d "{\"url\":\"https://ejemplo.com\"}"
+```
+También desde Swagger UI: `http://localhost:8080/swagger-ui.html` → **Enlaces** → **Try it out**.
+
+| Test | Qué verifica |
+|---|---|
+| `createsAndPersists...` | Alias, `createdAt` = reloj, `expiresAt` = +60 min, guardado en la base |
+| `tc21_...` | TC-21: alias vigente → se reintenta y el enlace existente **no cambia** (I2) |
+| `tc22_...` | TC-22: alias vencido sin borrar → se reasigna en la misma transacción; queda una sola fila (D6) |
+| `tc23_...` (servicio y API) | TC-23: siempre colisiona → exactamente 10 intentos, `AliasUnavailableException` y **503** ProblemDetail con `Retry-After` |
+| `tc24_...` | TC-24 / C3: la misma URL dos veces da dos alias, cada uno con sus 60 min |
+| `tc25_...` | TC-25 / D13: el alias que redirigiría a sí mismo se descarta |
+| `tc30_...` (servicio y API) | TC-30: URL inválida → no se genera alias y no se guarda nada |
+| `tc31_...` | TC-31 / I2 con **dos hilos y transacciones reales**: los dos leen el alias libre (sincronizados con una barrera), los dos intentan el INSERT, uno pierde contra la PK, reintenta y ambos terminan con alias distintos |
+| `tc61_...` | TC-61 / D28: `201`, `Location`, y el JSON tiene **exactamente** los 7 campos de §10.1 con sus valores |
+| `tc60_...` | TC-60 / D24: con reloj fijo, `secondsRemaining == 3600` y `expiresAt == createdAt + 60 min` |
+| `tc33_...` | TC-33 / I4: con `Host` y `X-Forwarded-Host` falsos, `shortUrl` y `qrUrl` empiezan con `app.base-url` |
+| `tc13_...`, `tc14_...`, JSON mal formado | 400 en ProblemDetail con el mensaje en español |
+| `endpointIsDocumentedInOpenApi` | `/v3/api-docs` incluye `/api/v1/links` |
+| `LinkUrlsTest` (2) | Arma las URLs desde la base, con o sin `/` final |
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: **76 tests, 0 fallos** |
+| **M** | `scripts\mutation-test.ps1 -Step 3` → **5/5 detectadas**: I2 (quitar el reintento) por TC-31; I4 (`shortUrl` desde la petición con `ServletUriComponentsBuilder`) por TC-33 y TC-61; D13 (sin chequeo de bucle) por TC-25; D6 (sin borrar el vencido) por TC-22; D11 (`<=` → `<`, 9 intentos) por TC-23. La mutación I2 `persist` → `merge` sigue cubierta desde el Paso 1 |
+| **E2E** | No aplica (sin interfaz; la web llega en el Paso 6) |
+| **V** | Ver despliegue abajo |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada |
+
+**Hallazgos durante el paso (corregidos):**
+- La mutación del reintento **no se aplicó** la primera vez: el texto a buscar tenía "transacción" con tilde y PowerShell 5 lee el script con otra codificación. Se cambió por un texto sin acentos. El script ya avisa "NO APLICADA" en ese caso, así que no pasó como detectada.
+- En una corrida, al cortar la salida del script antes de tiempo, el proceso terminó sin pasar por el `finally` y `LinkUrls.java` quedó con la mutación I4 puesta. Se detectó revisando el código y se restauró a mano antes de commitear. **Regla:** no cortar ni interrumpir `mutation-test.ps1` mientras corre.
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Qué pasa si dos personas generan el mismo alias al mismo tiempo?** → Los dos intentan guardarlo; la base acepta uno (el alias es clave primaria) y rechaza el otro. El rechazado reintenta con otro alias, en una transacción nueva. Lo prueba TC-31 con dos hilos reales.
+- **¿Por qué no `@Transactional` en el servicio?** → Porque después de un error de clave duplicada Hibernate no deja seguir usando la misma sesión. Con una transacción por intento, cada reintento empieza limpio.
+- **¿Por qué no consultan primero y listo?** → Entre la consulta y el INSERT otro pedido puede tomar el alias. La consulta evita errores en el caso común; la clave primaria es la garantía.
+- **¿De dónde sale el dominio de `shortUrl`?** → De `app.base-url`, nunca de la petición. Si se armara con el header `Host`, alguien podría hacer que la respuesta apunte a otro sitio. Lo prueba TC-33.
+- **¿Qué es ProblemDetail?** → Un formato estándar (RFC 7807) para errores HTTP: `type`, `title`, `status`, `detail`. Todos los errores de la API tienen la misma forma.
+- **¿Por qué 201 y no 200?** → 201 significa "se creó un recurso" y va con el header `Location`.
+- **¿Por qué la respuesta trae `secondsRemaining` si ya trae `expiresAt`?** → El reloj del celular o de la PC puede estar desfasado. Con los segundos restantes, la cuenta regresiva no depende de ese reloj (D24).
+
+### Preparado para cambios
+- **Alias personalizado:** campo opcional en `ShortenRequest`; el servicio usa ese alias sin reintentar y `AliasAlreadyTakenException` → 409 (un `@ExceptionHandler` más). Ver el Paso 2.
+- **Otro formato de respuesta o `/api/v2`:** DTO y controlador nuevos; el servicio no cambia.
+- **Límite de pedidos por IP:** un filtro delante del controlador, sin tocar el caso de uso.
+- **CORS para la extensión (D45):** se agrega cuando llegue la extensión; el endpoint ya está bajo `/api/**`.
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Ok sigamos entonces con el paso 3 dentro de dev/agustin" | Caso de uso con una transacción por intento, `LinkUrls`, controlador, DTOs, ProblemDetail; 19 tests y 5 mutaciones | La mutación del reintento no se aplicaba por la codificación (corregido); un archivo quedó mutado al interrumpir el script (restaurado y documentado) |
