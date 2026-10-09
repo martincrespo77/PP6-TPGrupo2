@@ -609,7 +609,7 @@ También desde Swagger UI: `http://localhost:8080/swagger-ui.html` → **Enlaces
 | **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: 76 tests en verde. El bug de `secondsRemaining` encontrado en el VPS se reprodujo primero con `ShortLinkResponseTest` (rojo, 2 fallos) y después se corrigió → **79 tests, 0 fallos** |
 | **M** | `scripts\mutation-test.ps1 -Step 3` → **6/6 detectadas**: I2 (quitar el reintento) por TC-31; I4 (`shortUrl` desde la petición con `ServletUriComponentsBuilder`) por TC-33 y TC-61; D13 (sin chequeo de bucle) por TC-25; D6 (sin borrar el vencido) por TC-22; D11 (`<=` → `<`, 9 intentos) por TC-23; D24 (`ceilDiv` → `floorDiv`) por `ShortLinkResponseTest`. La mutación I2 `persist` → `merge` sigue cubierta desde el Paso 1 |
 | **E2E** | No aplica (sin interfaz; la web llega en el Paso 6) |
-| **V** | **En el VPS**, `POST https://paradigmas6.agustingimenez.ar/api/v1/links` con una URL válida → `201`, `Location` y `shortUrl` con el dominio de producción (sale de `APP_BASE_URL`); con `drive.google.com/x` → `400` `application/problem+json` con el mensaje de D18. Commit desplegado en `/opt/pp6-shortener/DEPLOYED` (ver el commit de cierre del paso) |
+| **V** | **En el VPS**, `POST https://paradigmas6.agustingimenez.ar/api/v1/links` con una URL válida → `201`, `Location` y `shortUrl` con el dominio de producción (sale de `APP_BASE_URL`); con `drive.google.com/x` → `400` `application/problem+json` con el mensaje de D18. Después de la corrección: `/opt/pp6-shortener/DEPLOYED` = `4d3d99b 20261009-091448` y la respuesta trae `"secondsRemaining": 3600` |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada |
 
