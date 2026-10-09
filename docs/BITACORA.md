@@ -274,7 +274,7 @@ ssh VPS-DonWeb "journalctl -u pp6-shortener -n 50 --no-pager"        # logs
 
 ## Paso 1 – Dominio y persistencia (09/10/2026)
 
-**Estado:** completo en local, pendiente **A** (aceptación de Sofía) y despliegue (ver al final).
+**Estado:** completo en local y en el VPS, pendiente **A** (aceptación de Sofía).
 
 ### Objetivo
 Tener la entidad `ShortLink` con su regla de vencimiento, el puerto `ShortLinkRepository` y su implementación con `EntityManager` + JPQL. Cubre el requerimiento 3 de la consigna (persistencia con JPA/Hibernate) y el Paso 1 de `contexto.md` §16 y §18.4. Todavía no hay endpoints: este paso es la base sobre la que el Paso 3 crea enlaces y el Paso 4 redirige.
@@ -368,7 +368,7 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 1    # 
 | **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: `gradlew clean build` → `BUILD SUCCESSFUL`, **21 tests, 0 fallos** |
 | **M** | `scripts\mutation-test.ps1 -Step 1` → **4/4 detectadas**: I1 (`!isBefore` → `isAfter`) por `isExpiredAtExactExpirationInstant`; I2 (`persist` → `merge`) por `persistNeverOverwritesAnExistingAlias`; I6 (`<=` → `<`) por `deleteExpiredBefore...`; D6 (sin `flush`) por `deleteByAliasRemovesTheLink`. Hash de los archivos idéntico al original después de restaurar |
 | **E2E** | No aplica (sin interfaz) |
-| **V** | DDL real en el log de arranque: tabla con `alias` como PK y el índice `idx_short_link_expires_at` |
+| **V** | DDL real en el log de arranque: tabla con `alias` como PK y el índice `idx_short_link_expires_at`. **En el VPS:** `scripts\deploy.ps1` desplegó el commit `7c57b91` (build + tests, hash verificado, health check 200, `https://paradigmas6.agustingimenez.ar/` → 200); `/opt/pp6-shortener/DEPLOYED` = `7c57b91 20261009-082641`; la tabla y el índice figuran en `/var/lib/pp6-shortener/data/shortener.log` (HSQLDB los pasa al `.script` en el próximo checkpoint) |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada |
 
