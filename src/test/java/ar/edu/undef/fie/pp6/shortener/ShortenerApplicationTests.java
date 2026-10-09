@@ -3,6 +3,9 @@ package ar.edu.undef.fie.pp6.shortener;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ar.edu.undef.fie.pp6.shortener.config.AppProperties;
+import ar.edu.undef.fie.pp6.shortener.domain.port.AliasGenerator;
+import ar.edu.undef.fie.pp6.shortener.domain.port.ExpirationPolicy;
+import ar.edu.undef.fie.pp6.shortener.domain.port.UrlValidator;
 import java.time.Clock;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -30,6 +33,14 @@ class ShortenerApplicationTests {
 		assertThat(appProperties.alias().maxAttempts()).isEqualTo(10);
 		assertThat(appProperties.cleanup().cron()).isEqualTo("0 0 3 * * *");
 		assertThat(clock.getZone().getId()).isEqualTo("Z");
+	}
+
+	@Test
+	void wiresTheConfiguredStrategies(@Autowired UrlValidator urlValidator,
+			@Autowired AliasGenerator aliasGenerator, @Autowired ExpirationPolicy expirationPolicy) {
+		assertThat(aliasGenerator.generate()).hasSize(5);
+		assertThat(expirationPolicy.expirationFor(clock.instant())).isAfter(clock.instant());
+		assertThat(urlValidator).isNotNull();
 	}
 
 	@Test

@@ -395,3 +395,111 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 1    # 
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Vamos al siguiente paso, paso a paso, documentando, commiteando y desplegando; que quede profesional y escalable" | Paso 1 con TDD (tests primero), entidad + puerto + adaptador JPA, mutaciones versionadas, script de despliegue con rollback | Rojo → verde real; se corrigieron 2 errores propios detectados por los tests (prioridad de propiedades en el test de reinicio; comentario falso sobre el `flush`) y se registró el desvío `AliasAlreadyTakenException` |
+
+---
+
+## Paso 2 – Estrategias: validar URL, generar alias, calcular vencimiento (09/10/2026)
+
+**Estado:** completo en local y en el VPS, pendiente **A** (aceptación de Sofía).
+
+### Objetivo
+Las tres reglas de negocio que pueden cambiar con un "volantazo" del cliente quedan detrás de una interfaz cada una (patrón **Strategy**): qué URL se acepta, cómo se arma el alias y cuándo vence el enlace. Es el Paso 2 de `contexto.md` §16 y §18.4. Todavía no hay endpoints: el Paso 3 las usa para crear enlaces.
+
+### Estado ANTERIOR
+Paso 1: entidad `ShortLink`, puerto `ShortLinkRepository` y su adaptador JPA. `infrastructure/validation`, `infrastructure/alias` e `infrastructure/expiration` solo tenían su `package-info.java`. El `Clock` devolvía nanosegundos.
+
+### Qué es NUEVO
+| Archivo | Acción | Para qué sirve |
+|---|---|---|
+| `domain/port/UrlValidator.java` | nuevo | Puerto: `validate(url)`; lanza `InvalidUrlException` |
+| `domain/port/AliasGenerator.java` | nuevo | Puerto: `generate()` propone un alias candidato |
+| `domain/port/ExpirationPolicy.java` | nuevo | Puerto: `expirationFor(createdAt)` |
+| `domain/exception/InvalidUrlException.java` | nuevo | Error del dominio con mensaje para el usuario final |
+| `infrastructure/validation/RegexUrlValidator.java` | nuevo | D16–D19: http/https, con host, hasta 2048 caracteres; acepta el propio dominio, localhost e IPs privadas (C1) |
+| `infrastructure/alias/RandomAliasGenerator.java` | nuevo | D8–D10: `SecureRandom`, largo y alfabeto desde config, saltea palabras reservadas |
+| `infrastructure/expiration/FixedTtlExpirationPolicy.java` | nuevo | `createdAt + app.link.ttl` (60 min) |
+| `RegexUrlValidatorTest`, `RandomAliasGeneratorTest`, `FixedTtlExpirationPolicyTest`, `ClockConfigTest` | nuevos | 35 tests (ver tabla abajo) |
+
+### Qué se MODIFICÓ y por qué
+| Archivo | Cambio | Por qué |
+|---|---|---|
+| `config/ClockConfig.java` | `Clock.systemUTC()` → `Clock.tick(Clock.systemUTC(), Duration.ofMillis(1))` | Cierra la "Nota para el Paso 2": la columna guarda microsegundos; con nanosegundos, lo que devuelve la API y lo que queda en la base no coincidirían |
+| `ShortenerApplicationTests.java` | test `wiresTheConfiguredStrategies` | Verifica que Spring arma las tres estrategias con la configuración real |
+| `scripts/mutation-test.ps1` | 6 mutaciones del Paso 2 | Ver Evidencias |
+
+### Cómo funciona (explicado simple)
+```text
+                    ┌── UrlValidator ──────▶ RegexUrlValidator
+Caso de uso (Paso 3)├── AliasGenerator ────▶ RandomAliasGenerator ◀── app.alias.*
+                    └── ExpirationPolicy ──▶ FixedTtlExpirationPolicy ◀── app.link.ttl, Clock
+```
+1. **Validar la URL**, en este orden; el primer error gana y su mensaje llega al usuario:
+   - vacía o nula → "Ingresá la dirección que querés acortar";
+   - más de 2048 caracteres → "La dirección no puede superar los 2048 caracteres";
+   - no empieza con `http://` o `https://` (sin importar mayúsculas) → **"La dirección debe empezar con http:// o https://"** (D18; `ftp://` cae acá);
+   - `java.net.URI` no la puede interpretar, no tiene host o el puerto pasa de 65535 → "La dirección no tiene un formato válido".
+   No se filtra el destino: el propio dominio, `localhost` y las IPs privadas son válidos (C1).
+2. **Generar el alias:** elige `length` caracteres al azar del alfabeto (31 caracteres, sin `0 o 1 l i`). Si sale una palabra reservada (`api`, `admin`, `index`…, comparando sin mayúsculas) sortea otra; después de 100 intentos falla con un error de configuración. **No** consulta la base: que el alias esté libre lo garantiza `persist` (Paso 1) y el reintento lo hace el caso de uso (Paso 3).
+3. **Calcular el vencimiento:** `createdAt + ttl`. El "ahora" lo da el `Clock` inyectable, truncado a milisegundos.
+
+### Decisiones de diseño
+- **Una interfaz por regla variable** (Strategy, D31): cambiar una regla es escribir otra implementación y registrarla, sin tocar los casos de uso.
+- **`SecureRandom`** y no `Random`: los alias no deben ser predecibles (no se puede adivinar el siguiente). Para testear, un constructor package-private recibe un `RandomGenerator`, y el test fuerza qué alias sale (así se prueba TC-26 sin depender del azar).
+- **Fallar al arrancar si la configuración es inválida:** un alfabeto con símbolos que no sirven en una ruta (`-`, `_`, `/`), con caracteres repetidos (sesgarían la distribución) o un TTL ≤ 0 tiran la aplicación al iniciar, con un mensaje que nombra la propiedad (`app.alias.alphabet`, `app.link.ttl`). Es mejor que descubrirlo en producción.
+- **Prefijo con regex + `java.net.URI` para el resto:** el chequeo de prefijo da el mensaje exacto de D18; `URI` valida la sintaxis (espacios, host, puerto) sin escribir una regex gigante.
+- **Los mensajes de error están en el validador**, no en el controlador: la extensión, la web y la API reciben el mismo texto.
+
+#### ⚠️ Ajuste respecto de la nota del Paso 1
+La nota proponía que `ExpirationPolicy` truncara los instantes. Se truncó en el **`Clock`**: así queda alineado todo lo que pida "ahora" (creación, vencimiento, redirect, limpieza), no solo el vencimiento.
+
+#### Cómo se agregaría el alias personalizado sin tocar código existente (`contexto.md` §18.4)
+1. El DTO de creación (Paso 3) suma un campo opcional `alias`.
+2. Una clase nueva `CustomAliasValidator` valida el alias del usuario con las mismas reglas que el generador: alfabeto, largo máximo `ShortLink.MAX_ALIAS_LENGTH` y que no sea reservado.
+3. En el caso de uso: si viene un alias, se usa ese y **no** se reintenta. Si `persist` lanza `AliasAlreadyTakenException`, se responde 409. Si no viene, sigue el flujo actual con `AliasGenerator`.
+
+`ShortLink`, el repositorio, `RandomAliasGenerator` y la base no cambian: `persist` ya rechaza un alias tomado (I2).
+
+### Cómo probarlo
+```powershell
+gradlew.bat test                                                              # 57 tests
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 2    # 6 mutaciones
+```
+| Test | Qué verifica |
+|---|---|
+| `RegexUrlValidatorTest` (23 casos) | TC-10, 11, 15, 17, 19 aceptadas; TC-12, 13 (con el texto exacto de D18), 14, 16, 18 rechazadas con su mensaje; mayúsculas/usuario/puerto/fragmento aceptados; espacios y puerto 99999 rechazados |
+| `RandomAliasGeneratorTest` (7) | TC-20: 1000 alias de 5 caracteres del alfabeto, casi sin repetidos; alfabeto sin ambiguos. TC-26: con un azar forzado que produce `index` (y `INDEX`), se descarta y sale el siguiente. Alfabeto inválido o repetido falla al construir. Si todo sale reservado, error claro en vez de bucle infinito |
+| `FixedTtlExpirationPolicyTest` (3) | 60 min por defecto, TTL configurable, TTL 0 o negativo rechazado |
+| `ClockConfigTest` (2) | UTC y 1000 lecturas sin fracción por debajo del milisegundo |
+| `wiresTheConfiguredStrategies` | Spring crea las tres estrategias con `application.properties` |
+
+**Alcance:** TC-10 a TC-19 piden en `contexto.md` una respuesta **201/400**. Acá se prueba la regla (acepta/rechaza y el mensaje). El código HTTP se prueba en el Paso 3, cuando exista el endpoint.
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Primera corrida en verde: 56/57, falló `https://example.com:99999/`, porque `java.net.URI` acepta cualquier puerto numérico. Se agregó el chequeo `<= 65535` → **57 tests, 0 fallos** |
+| **M** | `scripts\mutation-test.ps1 -Step 2` → **6/6 detectadas**: D17 (`>` → `>=`) por TC-15; D16 (aceptar `ftp`) por TC-12; D19 (sin chequeo de host) por TC-18; D10 (sin reservadas) por los dos TC-26; TTL (sin sumar) por los 2 tests de vencimiento; CLK (sin truncar) por `ClockConfigTest`. La mutación de I1 que pide §18.4 para este paso ya está cubierta desde el Paso 1 |
+| **E2E** | No aplica (sin interfaz) |
+| **V** | Despliegue con `scripts\deploy.ps1` (ver commit desplegado en `/opt/pp6-shortener/DEPLOYED`) y `https://paradigmas6.agustingimenez.ar/` → 200 |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada |
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Qué es el patrón Strategy y dónde lo usan?** → Una interfaz con varias implementaciones intercambiables. Hay tres: `UrlValidator`, `AliasGenerator` y `ExpirationPolicy`. Si piden, por ejemplo, TTL distinto por usuario, se escribe otra `ExpirationPolicy`.
+- **¿Por qué `SecureRandom`?** → Con `Random` el siguiente alias se podría predecir a partir de unos cuantos, y alguien podría recorrer enlaces ajenos.
+- **¿Cuántos alias posibles hay?** → 31⁵ ≈ 28,6 millones. Con enlaces de 60 minutos que se borran, las colisiones son rarísimas, y si ocurren `persist` las detecta y se reintenta (Paso 3).
+- **¿Por qué no se generan alias con `0`, `o`, `1`, `l`, `i`?** → Se confunden al leerlos o dictarlos (D8).
+- **¿Por qué el generador no consulta la base para ver si el alias está libre?** → Porque entre la consulta y el INSERT otro pedido podría tomarlo. La única garantía real es la clave primaria. Consultar antes es un paso extra que no protege nada.
+- **¿Por qué aceptan URLs a `localhost` o a su propio dominio?** → Lo decidió el cliente (C1). Las reglas están en una sola clase, así que si cambia se modifica ahí.
+- **¿Cómo prueban algo aleatorio?** → Inyectando el generador de números: en los tests se fuerza la secuencia y el resultado es determinista.
+
+### Preparado para cambios
+- **Alias personalizado:** ver arriba, sin tocar las clases existentes.
+- **Alias más largo o con mayúsculas:** se cambia `app.alias.*`, sin recompilar. El arranque rechaza configuraciones inválidas.
+- **TTL elegido por el usuario:** nueva `ExpirationPolicy` (o un parámetro en el DTO), con tope desde config.
+- **Bloquear dominios (lista negra) o exigir HTTPS:** otra `UrlValidator`, o un decorador que envuelva la actual.
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Ir creando pull request y yo seguir trabajando en mi rama dev/agustin solo, pero ir dejando el historial de commits y pull request, sigamos" | Ramas de entrega `paso/N` + PR documentados en el README; Paso 2 con TDD: 3 puertos, 3 estrategias, `Clock` truncado, 6 mutaciones | El test de puerto 99999 detectó que `java.net.URI` no limita el puerto (corregido); se truncó en el `Clock` y no en la política (justificado arriba) |

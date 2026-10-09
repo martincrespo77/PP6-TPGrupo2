@@ -23,7 +23,25 @@ $mutations = @(
      Tests = '*JpaShortLinkRepositoryTest*' },
   @{ Step = 1; Id = 'D6'; File = "$src/infrastructure/persistence/JpaShortLinkRepository.java"
      From = 'entityManager.remove(link);'; To = 'entityManager.remove(link); if (true) return;'
-     Tests = '*JpaShortLinkRepositoryTest*' }
+     Tests = '*JpaShortLinkRepositoryTest*' },
+  @{ Step = 2; Id = 'D17'; File = "$src/infrastructure/validation/RegexUrlValidator.java"
+     From = 'url.length() > ShortLink.MAX_URL_LENGTH'; To = 'url.length() >= ShortLink.MAX_URL_LENGTH'
+     Tests = '*RegexUrlValidatorTest*' },
+  @{ Step = 2; Id = 'D16'; File = "$src/infrastructure/validation/RegexUrlValidator.java"
+     From = '"^https?://.*"'; To = '"^(https?|ftp)://.*"'
+     Tests = '*RegexUrlValidatorTest*' },
+  @{ Step = 2; Id = 'D19'; File = "$src/infrastructure/validation/RegexUrlValidator.java"
+     From = '&& uri.getHost() != null'; To = ''
+     Tests = '*RegexUrlValidatorTest*' },
+  @{ Step = 2; Id = 'D10'; File = "$src/infrastructure/alias/RandomAliasGenerator.java"
+     From = 'if (!reserved.contains(candidate.toLowerCase(Locale.ROOT)))'; To = 'if (true)'
+     Tests = '*RandomAliasGeneratorTest*' },
+  @{ Step = 2; Id = 'TTL'; File = "$src/infrastructure/expiration/FixedTtlExpirationPolicy.java"
+     From = 'return createdAt.plus(ttl);'; To = 'return createdAt;'
+     Tests = '*FixedTtlExpirationPolicyTest*' },
+  @{ Step = 2; Id = 'CLK'; File = "$src/config/ClockConfig.java"
+     From = 'Clock.tick(Clock.systemUTC(), Duration.ofMillis(1))'; To = 'Clock.systemUTC()'
+     Tests = '*ClockConfigTest*' }
 )
 
 $survivors = 0
