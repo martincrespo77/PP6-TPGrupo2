@@ -197,3 +197,75 @@ Tests:
 |---|---|---|
 | "¿Coinciden los diagramas con lo planteado por el profesor? ¿Qué hay de nuevo en el repo?" | Los diagramas cubren la consigna y `contexto.md`; se detectaron 2 observaciones en el diagrama del QR (`shortUrl` armada en dos lugares, QR dentro de `ResolveLinkService`) y que el Paso 0 de `dev/agustin` contradecía `contexto.md` | Se revisó el HTML de los diagramas y los archivos del Paso 0 contra `contexto.md` |
 | "Adaptar mi Paso 0 a `contexto.md`" + elección del paquete `ar.edu.undef.fie.pp6.shortener` (E6) | Migración a Java 25 / Boot 4.1.1 / Gradle 9.8.1, configuración única, ADR, README y esta entrada | Build y tests corridos de verdad, app levantada con JDK 25, mutación del test de `base-url` |
+
+---
+
+## Despliegue anticipado en el VPS (09/10/2026)
+
+**Estado:** completo en el VPS (`https://paradigmas6.agustingimenez.ar`). Adelanta **BL-007**: el despliegue no es obligatorio en la Etapa 1 (C12), pero hacerlo temprano detecta problemas de infraestructura antes de la entrega.
+
+### Objetivo
+Que el Paso 0 revisado corra en el servidor de Agustín (responsable del despliegue según `contexto.md` §19.1), con el mismo JAR que en local y sin tocar código.
+
+### Estado ANTERIOR
+El VPS ya corría el **Paso 0 del 05/10** (Java 21, perfil `prod`):
+
+| Pieza | Antes |
+|---|---|
+| Nginx | `paradigmas6.agustingimenez.ar`: HTTP → HTTPS y proxy a `127.0.0.1:8080` (en `/etc/nginx/sites-available/fie-materias.conf`), detrás de Cloudflare |
+| Servicio | `pp6-shortener.service` (systemd, usuario `pp6`, `WorkingDirectory=/var/lib/pp6-shortener`) con `/opt/jdk-21` |
+| Variables | `/etc/pp6-shortener/shortener.env` con `SPRING_PROFILES_ACTIVE=prod`, `SERVER_ADDRESS`, `PORT`, `DB_URL`, `DB_USER`, `DB_PASSWORD` |
+| JAR | `/opt/pp6-shortener/shortener.jar` (Paso 0 viejo) |
+
+### Qué es NUEVO / qué se MODIFICÓ
+| Pieza | Acción | Detalle |
+|---|---|---|
+| `/opt/jdk-25` | nuevo | Temurin 25.0.4.1 (`/opt/jdk-21` se conserva) |
+| `pp6-shortener.service` | modificado | `ExecStart` usa `/opt/jdk-25/bin/java` (mismos límites de memoria: `-Xmx256m`, SerialGC) |
+| `shortener.env` | modificado | Ahora solo: `APP_BASE_URL=https://paradigmas6.agustingimenez.ar`, `SERVER_ADDRESS=127.0.0.1`, `SPRING_JPA_SHOW_SQL=false`, `HQLCONSOLE_ENABLED=false` |
+| `shortener.jar` | modificado | JAR del commit `8ce2e8d` (SHA-256 `e4a932ad…6173047`, verificado antes y después de copiar) |
+| Backups | nuevo | `*.bak-20261009-081003` junto al JAR, al `.env` y al `.service` |
+
+Nginx no se tocó: ya hacía de reverse proxy con HTTPS.
+
+### Cómo funciona (explicado simple)
+1. Cloudflare recibe `https://paradigmas6.agustingimenez.ar` y lo manda al VPS.
+2. Nginx termina el HTTPS y reenvía la petición a `127.0.0.1:8080`.
+3. Spring Boot escucha **solo en 127.0.0.1** (`SERVER_ADDRESS`): desde internet no se puede llegar al 8080 salteando Nginx.
+4. La URL corta se arma desde `APP_BASE_URL` (I4), no desde los headers que pone el proxy.
+5. La base HSQLDB queda en `/var/lib/pp6-shortener/data` (ruta relativa `./data` + `WorkingDirectory`), fuera de la carpeta del JAR: sobrevive a los redeploys (C13).
+
+### Decisiones de diseño
+- **Mismo JAR que en local, distinta configuración por variables de entorno** (D34): el código no sabe dónde corre.
+- **Variables de Spring por entorno** (relaxed binding): `SPRING_JPA_SHOW_SQL=false` pisa `spring.jpa.show-sql`, y `HQLCONSOLE_ENABLED=false` pisa `hql-console.enabled`. La consola HQL es una herramienta para la defensa en local.
+- **HTTPS en el VPS:** `contexto.md` dice "sin HTTPS" (C14) porque el Cliente no lo exige, no porque lo prohíba. El servidor ya lo tenía resuelto en Nginx, así que se mantiene. ⚠️ Hay que avisarle al grupo para actualizar §13 y E3.
+
+### Cómo probarlo
+```bash
+curl -I https://paradigmas6.agustingimenez.ar/                       # 200
+curl -I https://paradigmas6.agustingimenez.ar/v3/api-docs            # 200
+ssh VPS-DonWeb "systemctl status pp6-shortener"                      # active (running)
+ssh VPS-DonWeb "journalctl -u pp6-shortener -n 50 --no-pager"        # logs
+```
+
+**Volver atrás:** restaurar los tres `*.bak-20261009-081003`, `systemctl daemon-reload` y `systemctl restart pp6-shortener`.
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **V** | Servicio `active` con `/opt/jdk-25`; log `Started ShortenerApplication in 8.71 seconds`; ~228 MB de RSS; `curl` local al 8080 → 200; desde internet `/`, `/v3/api-docs` y `/swagger-ui/index.html` → 200 por HTTPS |
+| **A** | ⛔ Pendiente: verificación de otro integrante |
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Qué cambió en el código para desplegar?** → Nada. El mismo JAR corre en local y en el VPS; solo cambian las variables de entorno.
+- **¿Por qué el 8080 no está expuesto a internet?** → Porque la app escucha solo en `127.0.0.1`. Todo entra por Nginx, que maneja el HTTPS.
+- **¿Se pierden los enlaces al redeployar?** → No: la base está en `/var/lib/pp6-shortener/data`, separada del JAR.
+
+### Preparado para cambios
+- Redeploy: copiar el JAR nuevo y `systemctl restart pp6-shortener`. Candidato a script cuando haya funcionalidad para desplegar seguido (E5).
+- Cambiar a PostgreSQL (ya instalado en el VPS): `SPRING_DATASOURCE_URL` y driver, sin tocar código.
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "¿Podés actualizarlo en el servidor paradigmas6.agustingimenez.ar?" | Inspección de solo lectura del VPS, plan con backups, instalación de JDK 25, ajuste del servicio y de las variables, despliegue del JAR | Hash del JAR, log de arranque, `curl` local y público |
