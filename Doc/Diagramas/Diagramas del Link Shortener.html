@@ -1,0 +1,1242 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagramas del Link Shortener</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: cabecera con pestañas; lienzo del diagrama a la izquierda y panel de detalle a la derecha (se apilan en pantallas angostas) */
+:root{
+  --bg:#F2F4F2; --surface:#FFFFFF; --canvas:#FAFBFA; --ink:#17212B; --muted:#56616D;
+  --line:#CDD3D6; --grid:#DCE2E1; --edge:#3A4653; --edge-line:#5B6774;
+  --accent:#2B54C6; --accent-soft:#E2E9FA;
+  --web:#2B54C6; --app:#7A46B5; --dom:#A8650E; --infra:#1D7766; --cfg:#68717C;
+  --ok:#1C7645; --warn:#A95109; --err:#B2241A;
+  --font-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10151B; --surface:#18202A; --canvas:#131A22; --ink:#E5EAEF; --muted:#9BA7B3;
+    --line:#2F3B48; --grid:#202A35; --edge:#8F9CA9; --edge-line:#8391A0;
+    --accent:#86A6FF; --accent-soft:#1D2A49;
+    --web:#86A6FF; --app:#BC97F1; --dom:#E7A85A; --infra:#4FC5AA; --cfg:#A3ABB5;
+    --ok:#5FCB8E; --warn:#F0A851; --err:#F3776B;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10151B; --surface:#18202A; --canvas:#131A22; --ink:#E5EAEF; --muted:#9BA7B3;
+  --line:#2F3B48; --grid:#202A35; --edge:#8F9CA9; --edge-line:#8391A0;
+  --accent:#86A6FF; --accent-soft:#1D2A49;
+  --web:#86A6FF; --app:#BC97F1; --dom:#E7A85A; --infra:#4FC5AA; --cfg:#A3ABB5;
+  --ok:#5FCB8E; --warn:#F0A851; --err:#F3776B;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font-body)}
+.wrap{max-width:1480px;margin:0 auto;padding-inline:20px;padding-block:22px 36px}
+@media (max-width:480px){.wrap{padding-inline:16px}}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.eyebrow{font:500 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+h1{font-family:var(--font-display);font-weight:600;font-size:clamp(24px,3.2vw,32px);line-height:1.1;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px;flex-wrap:wrap}
+.tab{border:0;background:transparent;color:var(--muted);font:500 14px var(--font-body);padding:8px 14px;border-radius:7px;cursor:pointer}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+.tab:focus-visible,.btn:focus-visible,.chip-t:focus-visible,.seg button:focus-visible,.plink:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:16px;margin-top:18px}
+@media (max-width:960px){.layout{grid-template-columns:minmax(0,1fr)}}
+.stage{min-width:0;display:flex;flex-direction:column;gap:10px}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.tgroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);font:500 13px var(--font-body);height:32px;min-width:32px;padding:0 10px;border-radius:8px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.zoomv{font:500 12px var(--font-mono);color:var(--muted);min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
+.hint{font-size:12.5px;color:var(--muted)}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{border:1px solid var(--line);background:var(--surface);color:var(--muted);font:500 13px var(--font-body);padding:6px 11px;border-radius:8px;cursor:pointer}
+.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.chip-t{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:500 12.5px var(--font-body);padding:5px 10px;border-radius:999px;cursor:pointer}
+.chip-t[aria-pressed="false"]{color:var(--muted);opacity:.6}
+.chip-t[aria-pressed="false"] .dot{background:transparent!important}
+.dot{width:9px;height:9px;border-radius:50%;border:2px solid currentColor;flex:none}
+.canvas{position:relative;height:min(74vh,780px);min-height:400px;border:1px solid var(--line);border-radius:12px;background-color:var(--canvas);background-image:radial-gradient(var(--grid) 1.1px,transparent 1.1px);background-size:18px 18px;overflow:hidden;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.canvas.dragging{cursor:grabbing}
+.canvas svg{width:100%;height:100%;display:block}
+.canvas .err{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--muted);align-items:center}
+.legend svg{vertical-align:middle;margin-right:6px}
+.legend .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1.5px solid}
+
+/* Panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;align-self:start;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);max-height:calc(100vh - 24px);overflow:auto;min-width:0}
+@media (max-width:960px){.panel{position:static;max-height:none}}
+.panel h2{font-family:var(--font-display);font-weight:600;font-size:21px;line-height:1.2;margin:4px 0 8px;text-wrap:balance}
+.panel h3{font:600 11px/1.2 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+.panel p{margin:0 0 10px;max-width:65ch}
+.kind{display:inline-block;font:500 11px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:5px 9px}
+.back{border:0;background:none;color:var(--accent);font:500 13px var(--font-body);padding:0;cursor:pointer;margin-bottom:10px}
+.plist{display:flex;flex-direction:column;gap:4px;margin:0;padding:0;list-style:none}
+.plink{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid transparent;background:transparent;color:var(--ink);font:14px var(--font-body);padding:6px 8px;border-radius:7px;cursor:pointer}
+.plink:hover{background:var(--accent-soft);border-color:var(--line)}
+.plink small{color:var(--muted);font:12px var(--font-mono);flex:none}
+.refs{display:flex;flex-wrap:wrap;gap:5px}
+.ref{font:500 11.5px/1 var(--font-mono);padding:5px 7px;border-radius:5px;border:1px solid var(--line);color:var(--ink);background:var(--canvas)}
+.ref.C{border-color:color-mix(in srgb,var(--ok) 55%,var(--line))}
+.ref.D{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.ref.I{border-color:color-mix(in srgb,var(--err) 55%,var(--line))}
+.ref.T{border-color:color-mix(in srgb,var(--app) 55%,var(--line))}
+.ref.Q,.ref.E,.ref.R{border-color:color-mix(in srgb,var(--warn) 60%,var(--line))}
+.code{display:inline-block;font:600 12px/1 var(--font-mono);padding:5px 7px;border-radius:5px;color:var(--surface)}
+.code.ok{background:var(--ok)} .code.warn{background:var(--warn)} .code.err{background:var(--err)} .code.neutral{background:var(--cfg)}
+.members{font:12.5px/1.6 var(--font-mono);background:var(--canvas);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:0;overflow-x:auto;white-space:pre}
+.steps{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:3px}
+.steps li{padding-left:2px}
+.steps li::marker{font:12px var(--font-mono);color:var(--muted)}
+.note{font-size:13px;color:var(--muted);border-left:2px solid var(--line);padding-left:10px;margin-top:14px}
+.layer-h{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px;margin:14px 0 4px}
+
+/* SVG */
+.node{cursor:pointer;transition:opacity .15s}
+.node:focus{outline:none}
+.n-shape{fill:var(--surface);stroke:var(--edge);stroke-width:1.4;transition:stroke .12s}
+.node:hover .n-shape{stroke:var(--accent)}
+.node:focus-visible .n-shape,.node.sel .n-shape,.node.onpath .n-shape{stroke:var(--accent);stroke-width:2.6}
+.n-label{fill:var(--ink);font:13px var(--font-body)}
+.hit{fill:transparent}
+.actor-fig{fill:none;stroke:var(--ink);stroke-width:1.7;stroke-linecap:round}
+.actor-head{fill:var(--surface);stroke:var(--ink);stroke-width:1.7}
+.node:hover .actor-fig,.node:hover .actor-head,.node.sel .actor-fig,.node.sel .actor-head{stroke:var(--accent)}
+.boundary{fill:color-mix(in srgb,var(--accent) 4%,transparent);stroke:var(--edge);stroke-width:1.2}
+.boundary-label{font:600 12px var(--font-mono);fill:var(--muted);letter-spacing:.06em}
+.k-term .n-shape{fill:var(--ink);stroke:var(--ink)}
+.k-term .n-label{fill:var(--bg);font-family:var(--font-mono);font-size:12.5px}
+.k-term.sel .n-shape,.k-term.onpath .n-shape{stroke:var(--accent)}
+.k-decision .n-shape{fill:color-mix(in srgb,var(--dom) 11%,var(--surface))}
+.k-resp .n-shape{stroke-width:1.8}
+.k-resp.r-ok .n-shape{fill:color-mix(in srgb,var(--ok) 12%,var(--surface));stroke:var(--ok)}
+.k-resp.r-warn .n-shape{fill:color-mix(in srgb,var(--warn) 12%,var(--surface));stroke:var(--warn)}
+.k-resp.r-err .n-shape{fill:color-mix(in srgb,var(--err) 12%,var(--surface));stroke:var(--err)}
+.k-resp.sel .n-shape,.k-resp.onpath .n-shape{stroke-width:3}
+.r-code{font:600 13px var(--font-mono)}
+.r-ok .r-code{fill:var(--ok)} .r-warn .r-code{fill:var(--warn)} .r-err .r-code{fill:var(--err)}
+.stereo{font:11px var(--font-mono);fill:var(--muted)}
+.cname{font:600 14px var(--font-body);fill:var(--ink)}
+.mem{font:12px var(--font-mono);fill:var(--ink)}
+.sep{stroke:var(--line);stroke-width:1}
+.stripe.L-web{fill:var(--web)} .stripe.L-app{fill:var(--app)} .stripe.L-dom{fill:var(--dom)} .stripe.L-infra{fill:var(--infra)} .stripe.L-cfg{fill:var(--cfg)}
+.k-class.L-web .n-shape{fill:color-mix(in srgb,var(--web) 6%,var(--surface))}
+.k-class.L-app .n-shape{fill:color-mix(in srgb,var(--app) 6%,var(--surface))}
+.k-class.L-dom .n-shape{fill:color-mix(in srgb,var(--dom) 7%,var(--surface))}
+.k-class.L-infra .n-shape{fill:color-mix(in srgb,var(--infra) 6%,var(--surface))}
+.k-class.L-cfg .n-shape{fill:color-mix(in srgb,var(--cfg) 7%,var(--surface))}
+.edge{transition:opacity .15s}
+.edge .line{fill:none;stroke:var(--edge-line);stroke-width:1.3}
+.edge.dashed .line{stroke-dasharray:6 4}
+.edge.dotted .line{stroke-dasharray:2 4}
+.head-open{fill:none;stroke:var(--edge-line);stroke-width:1.3;stroke-linejoin:round}
+.head-tri{fill:var(--surface);stroke:var(--edge-line);stroke-width:1.3}
+.head-fill{fill:var(--edge-line)}
+.edge.hi .line,.edge.hi .head-open{stroke:var(--accent);stroke-width:2.3}
+.edge.hi .head-tri{stroke:var(--accent);stroke-width:2}
+.edge.hi .head-fill{fill:var(--accent)}
+.e-bg{fill:var(--canvas)}
+.e-label{fill:var(--muted);font:11px var(--font-mono)}
+.edge.hi .e-label{fill:var(--accent);font-weight:600}
+.cfg-edge{display:none}
+.show-cfg .cfg-edge,.cfg-edge.hi{display:inline}
+.dim{opacity:.16}
+.off{opacity:.06;pointer-events:none}
+/* Secuencia */
+.life{stroke:var(--line);stroke-width:1.2;stroke-dasharray:5 5}
+.p-box{fill:var(--surface);stroke:var(--edge);stroke-width:1.3}
+.p-actor .p-box{fill:var(--ink);stroke:var(--ink)}
+.pname{font:600 13.5px var(--font-body);fill:var(--ink)}
+.p-actor .pname{fill:var(--bg)}
+.frag{fill:color-mix(in srgb,var(--accent) 3%,transparent);stroke:var(--edge);stroke-width:1.2}
+.frag-tab{fill:var(--surface);stroke:var(--edge);stroke-width:1.2}
+.frag-kind{font:600 11px var(--font-mono);fill:var(--ink)}
+.frag-cond{font:12px var(--font-mono);fill:var(--muted)}
+.frag-else{stroke:var(--edge);stroke-width:1.1;stroke-dasharray:6 4}
+.note-box{fill:color-mix(in srgb,var(--dom) 12%,var(--surface));stroke:var(--dom);stroke-width:1.1}
+.note-t{font:12px var(--font-body);fill:var(--ink)}
+.m-line{fill:none;stroke:var(--edge-line);stroke-width:1.5}
+.m-line.ret{stroke-dasharray:6 4}
+.m-label{font:13px var(--font-body);fill:var(--ink)}
+.k-msg:hover .m-line,.k-msg.sel .m-line,.k-msg:focus-visible .m-line{stroke:var(--accent)}
+.k-msg.sel .m-line,.k-msg:focus-visible .m-line{stroke-width:2.6}
+.k-msg:hover .head-open,.k-msg.sel .head-open{stroke:var(--accent)}
+.k-msg:hover .head-fill,.k-msg.sel .head-fill{fill:var(--accent)}
+.k-msg.sel .m-label{fill:var(--accent);font-weight:600}
+.later{opacity:.3}
+.btn:disabled{opacity:.4;cursor:default}
+.btn:disabled:hover{border-color:var(--line)}
+@media (prefers-reduced-motion: reduce){.node,.edge,.n-shape{transition:none}}
+</style>
+
+<style>body{margin:0}</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">PP6 · Grupo 2 · Etapa 1 · según contexto.md v0.1</p>
+      <h1>Diagramas del Link Shortener</h1>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Diagramas">
+      <button class="tab" role="tab" id="tab-casos" data-tab="casos" aria-selected="true">Casos de uso</button>
+      <button class="tab" role="tab" id="tab-flujos" data-tab="flujos" aria-selected="false">Flujos</button>
+      <button class="tab" role="tab" id="tab-secuencia" data-tab="secuencia" aria-selected="false">Secuencia</button>
+      <button class="tab" role="tab" id="tab-clases" data-tab="clases" aria-selected="false">Clases</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="stage" aria-label="Diagrama">
+      <div class="toolbar">
+        <div class="tgroup" id="extra"></div>
+        <div class="tgroup">
+          <button class="btn" id="zout" aria-label="Alejar">−</button>
+          <span class="zoomv" id="zval">100%</span>
+          <button class="btn" id="zin" aria-label="Acercar">+</button>
+          <button class="btn" id="zfit">Ajustar</button>
+        </div>
+      </div>
+      <div class="canvas" id="canvas">
+        <svg id="svg" aria-label="Diagrama interactivo"><g id="vp"></g></svg>
+      </div>
+      <div class="legend" id="legend"></div>
+      <p class="hint">Arrastrá para mover el diagrama · Ctrl + rueda (o los botones) para hacer zoom · Tocá un elemento para ver su detalle.</p>
+    </section>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+<script>
+(function(){
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+const F = {
+  sans: '13px "IBM Plex Sans", system-ui, sans-serif',
+  name: '600 14px "IBM Plex Sans", system-ui, sans-serif',
+  mono: '12px "IBM Plex Mono", ui-monospace, monospace',
+  monoS: '11px "IBM Plex Mono", ui-monospace, monospace',
+  term: '12.5px "IBM Plex Mono", ui-monospace, monospace'
+};
+const LH = 17;
+
+/* ---------------------------------------------------------------- Datos */
+
+const USE = {
+  actors: [
+    {id:"usuario", label:"Usuario", desc:"Persona que quiere compartir una URL larga, por ejemplo una carpeta de Google Drive. Usa la página web o la extensión. No hay login en la Etapa 1.", refs:["C9","C14"]},
+    {id:"destinatario", label:"Destinatario", desc:"Quien recibe el enlace corto o el QR y lo abre. Puede ser cualquier persona: la API es pública.", refs:["C14"]},
+    {id:"reloj", label:"Planificador", desc:"Actor temporal: la tarea programada de Spring (@Scheduled) que dispara la limpieza diaria según app.cleanup.cron.", refs:["D5"]}
+  ],
+  cases: [
+    {id:"uc1", label:"Acortar URL desde la web", desc:"El usuario pega la dirección en el campo «Dirección a acortar» y toca ACORTAR. La web llama a POST /api/v1/links.", refs:["D38","D39","TC-10","TC-11"]},
+    {id:"uc2", label:"Acortar la pestaña activa", desc:"Al abrir el popup de la extensión se toma la URL de la pestaña activa y se acorta sin pegar nada. En pestañas que no son http/https, el botón ACORTAR queda deshabilitado con un aviso.", refs:["C10","D42","D43","D44"]},
+    {id:"uc3", label:"Validar URL", desc:"Solo http/https, con host y hasta 2048 caracteres. Se aceptan URLs del propio acortador, localhost e IPs privadas. Si no es válida, responde 400.", refs:["C1","D16","D17","D18","D19","TC-10","TC-19"]},
+    {id:"uc4", label:"Generar alias único", desc:"5 caracteres de un alfabeto de 31 sin caracteres ambiguos. Ante una colisión reintenta (máximo 10 veces). Si choca con un enlace vencido que todavía no se borró, lo reasigna.", refs:["C2","D6","D8","D11","D13","I2","TC-20","TC-26","TC-31"]},
+    {id:"uc5", label:"Ver enlace, QR y vencimiento", desc:"Muestra el enlace corto, el QR (generado en el backend) y la hora de vencimiento. Solo el último enlace, sin historial. Si vence con la pantalla abierta, pasa al estado «vencido».", refs:["C8","D21","D24","D39","D41","TC-60"]},
+    {id:"uc6", label:"Copiar enlace", desc:"Botón manual en la web y en la extensión. No hay copia automática al portapapeles.", refs:["C11","D40"]},
+    {id:"uc7", label:"Descargar QR", desc:"Descarga el PNG con el alias como nombre de archivo ({alias}.png).", refs:["C11","D22","TC-51"]},
+    {id:"uc8", label:"Abrir enlace corto", desc:"El destinatario abre http://{base}/{alias}. Si el enlace está vigente, el servidor responde 302 hacia la URL original. Nunca 301.", refs:["D20","I3","TC-01","TC-02","TC-32"]},
+    {id:"uc9", label:"Escanear QR", desc:"El QR codifica exactamente la URL corta, así que escanearlo equivale a abrir el enlace corto.", refs:["I4","TC-50"]},
+    {id:"uc10", label:"Verificar vigencia", desc:"En cada acceso compara la hora actual con expiresAt: el enlace vale mientras now < expiresAt. No depende de que haya corrido la limpieza.", refs:["D2","D3","I1","TC-03","TC-04"]},
+    {id:"uc11", label:"Ver página «expiró o no existe»", desc:"Extiende «Abrir enlace corto» cuando el alias venció o nunca existió: 404 con la misma página para ambos casos y un botón para crear un enlace nuevo.", refs:["C6","D7","TC-05"]},
+    {id:"uc12", label:"Limpiar enlaces vencidos", desc:"Una vez por día borra las filas con expiresAt <= now. Nunca toca un enlace vigente.", refs:["D5","I6","TC-40","TC-41","TC-42"]}
+  ],
+  edges: [
+    ["usuario","uc1","assoc"],["usuario","uc2","assoc"],
+    ["destinatario","uc8","assoc"],["destinatario","uc9","assoc"],
+    ["reloj","uc12","assoc"],
+    ["uc1","uc3","include"],["uc1","uc4","include"],["uc1","uc5","include"],
+    ["uc2","uc3","include"],["uc2","uc4","include"],["uc2","uc5","include"],
+    ["uc6","uc5","extend"],["uc7","uc5","extend"],
+    ["uc9","uc8","include"],["uc8","uc10","include"],
+    ["uc11","uc8","extend"]
+  ]
+};
+
+const FLOWS = {
+  acortar: {
+    title:"Acortar una URL", sub:"POST /api/v1/links",
+    desc:"Lo usan la web y la extensión. La validación ocurre antes de tocar la base, y el alias se reintenta hasta 10 veces.",
+    nodes:[
+      {id:"s", type:"term", label:"POST /api/v1/links"},
+      {id:"d1", type:"decision", label:"¿URL válida?", info:"Solo http/https, con host y hasta 2048 caracteres. Se aceptan URLs del propio acortador, localhost e IPs privadas.", refs:["C1","D16","D17","D18"]},
+      {id:"r400", type:"resp", code:"400", label:"URL inválida (ProblemDetail)", refs:["D19","TC-12","TC-13","TC-14","TC-16","TC-18","TC-30"]},
+      {id:"a2", type:"action", label:"Generar alias (5 caracteres, alfabeto de 31)", refs:["D8","D9","D10"]},
+      {id:"d2", type:"decision", label:"¿Ya existe ese alias?"},
+      {id:"d3", type:"decision", label:"¿Está vigente?", info:"Vigente significa now < expiresAt.", refs:["D3"]},
+      {id:"a3", type:"action", label:"Borrar la fila vencida en la misma transacción", info:"Así el alias vencido queda disponible y se reasigna sin esperar a la limpieza diaria.", refs:["D6","TC-22"]},
+      {id:"d4", type:"decision", label:"¿La URL corta es igual al destino?", info:"Evita un enlace que se redirija a sí mismo, posible porque se aceptan URLs del propio acortador.", refs:["D13","TC-25"]},
+      {id:"d5", type:"decision", label:"¿Quedan intentos? (máx. 10)", refs:["D11"]},
+      {id:"r503", type:"resp", code:"503", label:"Sin alias disponibles", refs:["D11","TC-23"]},
+      {id:"a4", type:"action", label:"persist(ShortLink) con expiresAt = now + 60 min", info:"Siempre persist, nunca merge: con el alias como clave primaria, un merge pisaría en silencio un enlace vigente.", refs:["D1","D32","I2"]},
+      {id:"d6", type:"decision", label:"¿Falló la clave primaria?", info:"Otro pedido simultáneo guardó el mismo alias un instante antes.", refs:["I2","TC-31"]},
+      {id:"r201", type:"resp", code:"201", label:"Enlace, QR, expiresAt y secondsRemaining", info:"La URL corta se arma desde app.base-url, nunca desde los headers de la petición.", refs:["D23","D24","I4","TC-33","TC-60"]}
+    ],
+    edges:[
+      ["s","d1"],["d1","r400","no"],["d1","a2","sí"],["a2","d2"],
+      ["d2","d4","no"],["d2","d3","sí"],["d3","d5","sí"],["d3","a3","no"],["a3","d4"],
+      ["d4","d5","sí"],["d4","a4","no"],
+      ["d5","a2","sí",true],["d5","r503","no"],
+      ["a4","d6"],["d6","d5","sí",true],["d6","r201","no"]
+    ],
+    scenarios:[
+      {id:"ok", title:"URL válida sin colisión", result:"201", path:["s","d1","a2","d2","d4","a4","d6","r201"], tcs:["TC-10","TC-11","TC-15","TC-17","TC-19","TC-24","TC-60"]},
+      {id:"inv", title:"URL inválida", result:"400", path:["s","d1","r400"], tcs:["TC-12","TC-13","TC-14","TC-16","TC-18","TC-30"]},
+      {id:"vig", title:"El alias choca con un enlace vigente", result:"201", path:["s","d1","a2","d2","d3","d5","a2","d2","d4","a4","d6","r201"], tcs:["TC-21"]},
+      {id:"venc", title:"El alias choca con un enlace vencido sin borrar", result:"201", path:["s","d1","a2","d2","d3","a3","d4","a4","d6","r201"], tcs:["TC-22"]},
+      {id:"loop", title:"La URL corta sería igual al destino", result:"201", path:["s","d1","a2","d2","d4","d5","a2","d2","d4","a4","d6","r201"], tcs:["TC-25"]},
+      {id:"agot", title:"Se agotan los 10 intentos", result:"503", path:["s","d1","a2","d2","d3","d5","r503"], tcs:["TC-23"]},
+      {id:"conc", title:"Pedido simultáneo con el mismo alias", result:"201", path:["s","d1","a2","d2","d4","a4","d6","d5","a2","d2","d4","a4","d6","r201"], tcs:["TC-31"]}
+    ]
+  },
+  redirigir: {
+    title:"Abrir un enlace corto", sub:"GET /{alias}",
+    desc:"La vigencia se evalúa en cada acceso. Un enlace vencido y uno inexistente responden igual.",
+    nodes:[
+      {id:"s", type:"term", label:"GET /{alias}"},
+      {id:"d1", type:"decision", label:"¿Coincide con [A-Za-z0-9]{1,16}?", info:"La restricción evita choques con /api/** y con los archivos estáticos (que tienen punto).", refs:["D15"]},
+      {id:"o1", type:"term", label:"Otra ruta (/api/**, estáticos)"},
+      {id:"a1", type:"action", label:"Normalizar el alias a minúsculas", info:"Recomendación pendiente de confirmar con el Cliente.", refs:["Q7"]},
+      {id:"a2", type:"action", label:"findByAlias(alias)"},
+      {id:"d2", type:"decision", label:"¿Existe?"},
+      {id:"d3", type:"decision", label:"¿now ≥ expiresAt?", info:"Intervalo semiabierto: en el instante exacto expiresAt el enlace ya venció. No depende de la limpieza diaria.", refs:["D2","D3","I1"]},
+      {id:"r404", type:"resp", code:"404", label:"Página «Este enlace expiró o no existe»", refs:["C6","D7"]},
+      {id:"r302", type:"resp", code:"302", label:"Location: URL original", info:"302 y nunca 301: el navegador guarda un 301 en caché y seguiría redirigiendo después del vencimiento.", refs:["D20","I3"]}
+    ],
+    edges:[
+      ["s","d1"],["d1","o1","no"],["d1","a1","sí"],["a1","a2"],["a2","d2"],
+      ["d2","r404","no"],["d2","d3","sí"],["d3","r404","sí"],["d3","r302","no"]
+    ],
+    scenarios:[
+      {id:"vig", title:"Enlace vigente", result:"302", path:["s","d1","a1","a2","d2","d3","r302"], tcs:["TC-01","TC-02","TC-32"]},
+      {id:"may", title:"Alias escrito en mayúsculas", result:"302", path:["s","d1","a1","a2","d2","d3","r302"], tcs:["TC-06"]},
+      {id:"venc", title:"Enlace vencido (fila todavía presente)", result:"404", path:["s","d1","a1","a2","d2","d3","r404"], tcs:["TC-03","TC-04"]},
+      {id:"inex", title:"Alias que nunca existió", result:"404", path:["s","d1","a1","a2","d2","r404"], tcs:["TC-05"]}
+    ]
+  },
+  qr: {
+    title:"Obtener el código QR", sub:"GET /api/v1/links/{alias}/qr",
+    desc:"Único lugar donde se genera el QR. La web y la extensión muestran esta imagen.",
+    nodes:[
+      {id:"s", type:"term", label:"GET /api/v1/links/{alias}/qr"},
+      {id:"d1", type:"decision", label:"¿size entre 128 y 1024?", info:"Por defecto 256. Qué hacer fuera de rango está pendiente (E7); la recomendación es responder 400.", refs:["E7","R17"]},
+      {id:"r400", type:"resp", code:"400", label:"Tamaño fuera de rango", refs:["E7","TC-53"]},
+      {id:"a1", type:"action", label:"resolve(alias)"},
+      {id:"d2", type:"decision", label:"¿Existe y está vigente?", refs:["D7","I1"]},
+      {id:"r404", type:"resp", code:"404", label:"Enlace no disponible", refs:["TC-52"]},
+      {id:"a2", type:"action", label:"Generar PNG de la URL corta (desde app.base-url)", refs:["D21","D23","I4"]},
+      {id:"d3", type:"decision", label:"¿download=true?"},
+      {id:"a3", type:"action", label:"Agregar Content-Disposition: {alias}.png", info:"El atributo HTML download no funciona entre orígenes distintos (caso de la extensión), por eso lo resuelve el servidor.", refs:["C11","D22","TC-51"]},
+      {id:"r200", type:"resp", code:"200", label:"image/png", refs:["TC-50"]}
+    ],
+    edges:[
+      ["s","d1"],["d1","r400","no"],["d1","a1","sí"],["a1","d2"],["d2","r404","no"],["d2","a2","sí"],
+      ["a2","d3"],["d3","a3","sí"],["d3","r200","no"],["a3","r200"]
+    ],
+    scenarios:[
+      {id:"ver", title:"Mostrar el QR", result:"200", path:["s","d1","a1","d2","a2","d3","r200"], tcs:["TC-50"]},
+      {id:"desc", title:"Descargar el QR", result:"200", path:["s","d1","a1","d2","a2","d3","a3","r200"], tcs:["TC-51"]},
+      {id:"venc", title:"QR de un enlace vencido o inexistente", result:"404", path:["s","d1","a1","d2","r404"], tcs:["TC-52"]},
+      {id:"size", title:"Tamaño fuera de rango", result:"400", path:["s","d1","r400"], tcs:["TC-53"]}
+    ]
+  },
+  limpieza: {
+    title:"Limpiar enlaces vencidos", sub:"@Scheduled(cron = app.cleanup.cron)",
+    desc:"Solo ordena la base: la exactitud del vencimiento no depende de esta tarea.",
+    nodes:[
+      {id:"s", type:"term", label:"Disparo diario (app.cleanup.cron)", refs:["D5"]},
+      {id:"a1", type:"action", label:"now = clock.instant()", info:"Clock inyectable: los tests fijan la hora sin esperar.", refs:["D4"]},
+      {id:"a2", type:"action", label:"deleteExpiredBefore(now): borra filas con expiresAt <= now", info:"La condición <= respeta el intervalo semiabierto y nunca alcanza a un enlace vigente.", refs:["D5","I6"]},
+      {id:"a3", type:"action", label:"Registrar en el log la cantidad borrada", refs:["D36"]},
+      {id:"e", type:"term", label:"Fin"}
+    ],
+    edges:[["s","a1"],["a1","a2"],["a2","a3"],["a3","e"]],
+    scenarios:[
+      {id:"run", title:"Corrida diaria", result:"OK", path:["s","a1","a2","a3","e"], tcs:["TC-40","TC-41","TC-42"]}
+    ]
+  }
+};
+
+const LAYERS = {
+  web:{label:"Web", long:"Web: adaptadores de entrada"},
+  app:{label:"Aplicación", long:"Aplicación: casos de uso"},
+  dom:{label:"Dominio", long:"Dominio: modelo y puertos"},
+  infra:{label:"Infraestructura", long:"Infraestructura: adaptadores"},
+  cfg:{label:"Configuración", long:"Configuración"}
+};
+
+const CLASSES = [
+  {id:"LinkApiController", layer:"web", pkg:"web.api", st:"controller", attrs:[], meths:["+ shorten(req): 201 ShortLinkResponse","+ qr(alias, size, download): image/png"], desc:"Expone POST /api/v1/links y el endpoint del QR. Convierte el ShortLink del dominio en ShortLinkResponse. CorsConfig habilita /api/** para la extensión.", refs:["D25","D28","D45"]},
+  {id:"RedirectController", layer:"web", pkg:"web.redirect", st:"controller", attrs:[], meths:["+ redirect(alias): 302 | 404"], desc:"Atiende GET /{alias:[A-Za-z0-9]{1,16}}. Responde 302 a la URL original o 404 con la página «Este enlace expiró o no existe».", refs:["D7","D15","D20","I3"]},
+  {id:"GlobalExceptionHandler", layer:"web", pkg:"web.error", st:"controller advice", attrs:[], meths:["+ invalidUrl(e): ProblemDetail 400","+ exhausted(e): ProblemDetail 503","+ notAvailable(e): 404"], desc:"Traduce las excepciones del dominio a respuestas HTTP uniformes (RFC 7807). Una excepción nueva es un @ExceptionHandler más.", refs:["D19","D26"]},
+  {id:"ShortenRequest", layer:"web", pkg:"web.api.dto", st:"record", attrs:["+ url: String  @NotBlank"], meths:[], desc:"Cuerpo del POST: { \"url\": \"https://...\" }.", refs:["D28"]},
+  {id:"ShortLinkResponse", layer:"web", pkg:"web.api.dto", st:"record", attrs:["+ alias, shortUrl, originalUrl","+ createdAt, expiresAt: Instant","+ secondsRemaining: long","+ qrUrl: String"], meths:["+ from(link, baseUrl, now)"], desc:"Respuesta 201. shortUrl y qrUrl se arman desde app.base-url. La API nunca devuelve la entidad JPA.", refs:["D23","D24","D28","I4","TC-61"]},
+  {id:"ShortenLinkService", layer:"app", pkg:"application", st:"service", attrs:["- validator: UrlValidator","- aliasGenerator: AliasGenerator","- expirationPolicy: ExpirationPolicy","- repository: ShortLinkRepository","- clock: Clock"], meths:["+ shorten(url): ShortLink  @Transactional"], desc:"Caso de uso de acortar: valida, genera el alias con reintentos, reasigna alias vencidos, evita el bucle sobre sí mismo y guarda con persist.", refs:["D6","D11","D12","D13","D32","I2"]},
+  {id:"ResolveLinkService", layer:"app", pkg:"application", st:"service", attrs:["- repository: ShortLinkRepository","- qrGenerator: QrCodeGenerator","- clock: Clock"], meths:["+ resolve(alias): ShortLink","+ qrPng(content, size): byte[]"], desc:"Busca un enlace y verifica su vigencia; si no existe o venció lanza LinkNotAvailableException. Ubicar aquí la generación del QR es una propuesta de este diagrama; la URL que se codifica la arma el controller desde app.base-url.", refs:["D2","D7","D21","I1"]},
+  {id:"ExpiredLinksCleanupService", layer:"app", pkg:"application", st:"service", attrs:["- repository: ShortLinkRepository","- clock: Clock"], meths:["+ cleanup(): int"], desc:"Borra los enlaces vencidos y devuelve cuántos borró.", refs:["D5","I6"]},
+  {id:"ShortLink", layer:"dom", pkg:"domain.model", st:"entity", attrs:["- alias: String  {PK}","- originalUrl: String(2048)","- createdAt: Instant","- expiresAt: Instant  {index}"], meths:["+ isExpired(now): boolean"], desc:"Única entidad. El alias es la clave primaria, así la base garantiza la unicidad. isExpired devuelve !now.isBefore(expiresAt).", refs:["D3","D30","I1","I2"]},
+  {id:"AliasGenerator", layer:"dom", pkg:"domain.port", st:"interface", attrs:[], meths:["+ generate(): String"], desc:"Strategy. Un alias personalizado o numérico en una etapa futura es una implementación nueva.", refs:["D9","BL-002"]},
+  {id:"ExpirationPolicy", layer:"dom", pkg:"domain.port", st:"interface", attrs:[], meths:["+ expiresAt(createdAt): Instant"], desc:"Strategy. Absorbe un TTL por enlace o por usuario, enlaces permanentes o vencimiento por cantidad de usos.", refs:["D1"]},
+  {id:"UrlValidator", layer:"dom", pkg:"domain.port", st:"interface", attrs:[], meths:["+ validate(url): void"], desc:"Strategy (+ Decorator). Absorbe listas negras, más esquemas o filtros anti-abuso.", refs:["D16"]},
+  {id:"QrCodeGenerator", layer:"dom", pkg:"domain.port", st:"interface", attrs:[], meths:["+ generatePng(content, size): byte[]"], desc:"Puerto: permite cambiar de librería de QR o agregar SVG sin tocar los servicios.", refs:["D21"]},
+  {id:"ShortLinkRepository", layer:"dom", pkg:"domain.port", st:"interface", attrs:[], meths:["+ persist(link)","+ findByAlias(alias): Optional<ShortLink>","+ deleteByAlias(alias)","+ deleteExpiredBefore(now): int"], desc:"Puerto de persistencia. Cambiar de motor de base no toca los servicios.", refs:["D31"]},
+  {id:"InvalidUrlException", layer:"dom", pkg:"domain.exception", st:"exception", attrs:[], meths:[], desc:"URL que no cumple la validación. Se traduce a 400.", refs:["D19"]},
+  {id:"AliasExhaustedException", layer:"dom", pkg:"domain.exception", st:"exception", attrs:[], meths:[], desc:"Se agotaron los intentos de generar un alias libre. Se traduce a 503.", refs:["D11"]},
+  {id:"LinkNotAvailableException", layer:"dom", pkg:"domain.exception", st:"exception", attrs:[], meths:[], desc:"El alias no existe o venció. Se traduce a 404.", refs:["D7"]},
+  {id:"JpaShortLinkRepository", layer:"infra", pkg:"infrastructure.persistence", st:"repository", attrs:["- em: EntityManager"], meths:["+ persist(link)  // nunca merge"], desc:"Implementa el puerto con EntityManager + JPQL parametrizado, al estilo del proyecto del profesor.", refs:["D31","D32","I2"]},
+  {id:"RandomAliasGenerator", layer:"infra", pkg:"infrastructure.alias", st:"component", attrs:["- random: SecureRandom","- length = 5","- alphabet (31 caracteres)","- reserved: List<String>"], meths:["+ generate(): String"], desc:"Alias aleatorio sin caracteres ambiguos (0, o, 1, l, i). Nunca devuelve una palabra reservada.", refs:["D8","D9","D10"]},
+  {id:"FixedTtlExpirationPolicy", layer:"infra", pkg:"infrastructure.expiration", st:"component", attrs:["- ttl: Duration = 60m"], meths:["+ expiresAt(createdAt): Instant"], desc:"Vencimiento fijo de 60 minutos desde la creación.", refs:["C5","D1"]},
+  {id:"RegexUrlValidator", layer:"infra", pkg:"infrastructure.validation", st:"component", attrs:["- pattern: http|https + host","- maxLength = 2048"], meths:["+ validate(url): void"], desc:"Validación solo por formato. No consulta el destino.", refs:["C1","D16","D17","D18"]},
+  {id:"ZxingQrCodeGenerator", layer:"infra", pkg:"infrastructure.qr", st:"component", attrs:[], meths:["+ generatePng(content, size): byte[]"], desc:"Adaptador ZXing (core + javase).", refs:["D21","TC-50"]},
+  {id:"ExpiredLinksCleanupJob", layer:"infra", pkg:"infrastructure.scheduling", st:"scheduled", attrs:[], meths:["+ run()  @Scheduled(cron)"], desc:"Adaptador de entrada temporal: dispara la limpieza según app.cleanup.cron. Requiere @EnableScheduling.", refs:["D5"]},
+  {id:"AppProperties", layer:"cfg", pkg:"config", st:"configuration properties", attrs:["- baseUrl  @NotNull","- linkTtl: Duration","- aliasLength, alphabet","- reserved: List<String>","- maxAttempts = 10","- cleanupCron: String"], meths:[], desc:"Toda la configuración externa, validada al arrancar: si falta app.base-url, la app no inicia. Activá «Dependencias de configuración» para ver quién la usa.", refs:["D33","D34"]},
+  {id:"Clock", layer:"cfg", pkg:"config (ClockConfig)", st:"bean", attrs:[], meths:["Clock.systemUTC()"], desc:"Reloj inyectable. Los tests lo fijan para simular «pasaron 61 minutos» sin esperar.", refs:["D4"]}
+];
+
+const CEDGES = [
+  ["LinkApiController","ShortenLinkService","usa"],
+  ["LinkApiController","ResolveLinkService","usa"],
+  ["LinkApiController","ShortenRequest","usa"],
+  ["LinkApiController","ShortLinkResponse","usa"],
+  ["RedirectController","ResolveLinkService","usa"],
+  ["GlobalExceptionHandler","InvalidUrlException","maneja"],
+  ["GlobalExceptionHandler","AliasExhaustedException","maneja"],
+  ["GlobalExceptionHandler","LinkNotAvailableException","maneja"],
+  ["ExpiredLinksCleanupJob","ExpiredLinksCleanupService","usa"],
+  ["ShortenLinkService","UrlValidator","usa"],
+  ["ShortenLinkService","AliasGenerator","usa"],
+  ["ShortenLinkService","ExpirationPolicy","usa"],
+  ["ShortenLinkService","ShortLinkRepository","usa"],
+  ["ShortenLinkService","ShortLink","crea"],
+  ["ResolveLinkService","ShortLinkRepository","usa"],
+  ["ResolveLinkService","QrCodeGenerator","usa"],
+  ["ExpiredLinksCleanupService","ShortLinkRepository","usa"],
+  ["ShortLinkRepository","ShortLink","asoc"],
+  ["JpaShortLinkRepository","ShortLinkRepository","realiza"],
+  ["RandomAliasGenerator","AliasGenerator","realiza"],
+  ["FixedTtlExpirationPolicy","ExpirationPolicy","realiza"],
+  ["RegexUrlValidator","UrlValidator","realiza"],
+  ["ZxingQrCodeGenerator","QrCodeGenerator","realiza"],
+  ["LinkApiController","AppProperties","cfg"],
+  ["ShortenLinkService","AppProperties","cfg"],
+  ["RandomAliasGenerator","AppProperties","cfg"],
+  ["FixedTtlExpirationPolicy","AppProperties","cfg"],
+  ["ExpiredLinksCleanupJob","AppProperties","cfg"],
+  ["LinkApiController","Clock","cfg"],
+  ["ShortenLinkService","Clock","cfg"],
+  ["ResolveLinkService","Clock","cfg"],
+  ["ExpiredLinksCleanupService","Clock","cfg"],
+  ["FixedTtlExpirationPolicy","Clock","cfg"]
+];
+
+const SEQS = {
+  acortar: {
+    title:"Acortar una URL", sub:"POST /api/v1/links",
+    desc:"La web y la extensión usan la misma petición. La validación va primero, antes de tocar la base, y el alias se reintenta hasta 10 veces.",
+    parts:[
+      {id:"cli", label:"Web / Extensión", kind:"actor"},
+      {id:"api", label:"LinkApiController", layer:"web"},
+      {id:"svc", label:"ShortenLinkService", layer:"app"},
+      {id:"val", label:"UrlValidator", layer:"dom"},
+      {id:"gen", label:"AliasGenerator", layer:"dom"},
+      {id:"repo", label:"ShortLinkRepository", layer:"dom"},
+      {id:"db", label:"Base de datos", layer:"infra"}
+    ],
+    steps:[
+      {t:"m", f:"cli", to:"api", l:"POST /api/v1/links { url }", i:"El usuario toca ACORTAR en la web, o abre el popup de la extensión, que envía la URL de la pestaña activa.", r:["D25","D38","D42"]},
+      {t:"m", f:"api", to:"svc", l:"shorten(url)", i:"El controller no tiene lógica de negocio: delega todo en el caso de uso.", r:["D28"]},
+      {t:"m", f:"svc", to:"val", l:"validate(url)", i:"Solo http/https, con host y hasta 2048 caracteres. Se aceptan URLs del propio acortador, localhost e IPs privadas.", r:["C1","D16","D17","D18","TC-10","TC-19"]},
+      {t:"begin", k:"alt", l:"[URL inválida]"},
+      {t:"m", f:"val", to:"svc", l:"InvalidUrlException", ret:1, i:"La validación ocurre antes de tocar la base, así que un rechazo no deja filas.", r:["D19","TC-30"]},
+      {t:"m", f:"api", to:"cli", l:"400 Bad Request (ProblemDetail)", ret:1, i:"GlobalExceptionHandler traduce la excepción a una respuesta RFC 7807 con un mensaje claro.", r:["D19","D26","TC-12","TC-13","TC-14","TC-16","TC-18"]},
+      {t:"else", l:"[URL válida]"},
+      {t:"begin", k:"loop", l:"[mientras no haya un alias libre, máx. 10 intentos]"},
+      {t:"m", f:"svc", to:"gen", l:"generate()", i:"5 caracteres de un alfabeto de 31, sin caracteres ambiguos, con SecureRandom. Nunca devuelve una palabra reservada.", r:["D8","D9","D10","TC-20","TC-26"]},
+      {t:"m", f:"gen", to:"svc", l:"alias", ret:1},
+      {t:"m", f:"svc", to:"repo", l:"findByAlias(alias)", i:"Si choca con un enlace vigente se genera otro alias. Si choca con uno vencido que la limpieza no borró, esa fila se borra en la misma transacción y el alias se reasigna. Si la URL corta fuera igual al destino, también se genera otro alias.", r:["D6","D11","D13","TC-21","TC-22","TC-25"]},
+      {t:"m", f:"repo", to:"svc", l:"Optional<ShortLink>", ret:1},
+      {t:"note", over:["svc","repo"], l:"Vigente: otro alias · vencido: se borra y se reasigna · URL corta igual al destino: otro alias"},
+      {t:"end"},
+      {t:"note", over:["svc","repo"], l:"Agotados los 10 intentos: AliasExhaustedException, que se traduce a 503 (TC-23)"},
+      {t:"m", f:"svc", to:"repo", l:"persist(ShortLink)", i:"Siempre persist, nunca merge: con el alias como clave primaria, un merge pisaría en silencio un enlace vigente. expiresAt = createdAt + 60 min, calculado por ExpirationPolicy.", r:["D1","D32","I2","TC-21"]},
+      {t:"m", f:"repo", to:"db", l:"INSERT INTO short_link", i:"Si otro pedido simultáneo tomó el mismo alias, falla la clave primaria (DataIntegrityViolationException) y el caso de uso vuelve a intentar con otro alias.", r:["D30","I2","TC-31"]},
+      {t:"m", f:"svc", to:"api", l:"ShortLink", ret:1},
+      {t:"m", f:"api", to:"cli", l:"201 Created (ShortLinkResponse)", ret:1, i:"shortUrl y qrUrl se arman desde app.base-url, nunca desde los headers de la petición. Incluye expiresAt y secondsRemaining. La API devuelve un DTO, no la entidad.", r:["D23","D24","D28","I4","TC-33","TC-60","TC-61"]},
+      {t:"end"}
+    ]
+  },
+  redirigir: {
+    title:"Abrir un enlace corto", sub:"GET /{alias}",
+    desc:"La vigencia se evalúa en cada acceso, con el reloj inyectable. Un enlace vencido y uno inexistente responden igual.",
+    parts:[
+      {id:"nav", label:"Navegador", kind:"actor"},
+      {id:"rc", label:"RedirectController", layer:"web"},
+      {id:"svc", label:"ResolveLinkService", layer:"app"},
+      {id:"repo", label:"ShortLinkRepository", layer:"dom"},
+      {id:"clock", label:"Clock", layer:"cfg"}
+    ],
+    steps:[
+      {t:"m", f:"nav", to:"rc", l:"GET /{alias}", i:"El destinatario abre el enlace corto o escanea el QR, que codifica exactamente esa URL. La ruta solo acepta [A-Za-z0-9]{1,16}.", r:["D15","I4","TC-50"]},
+      {t:"m", f:"rc", to:"svc", l:"resolve(alias)", i:"El alias se normaliza a minúsculas antes de buscarlo. Recomendación pendiente de confirmar con el Cliente.", r:["Q7","TC-06"]},
+      {t:"m", f:"svc", to:"repo", l:"findByAlias(alias)", i:"Consulta JPQL parametrizada sobre la clave primaria."},
+      {t:"m", f:"repo", to:"svc", l:"Optional<ShortLink>", ret:1},
+      {t:"m", f:"svc", to:"clock", l:"instant()", i:"Clock inyectable: los tests fijan la hora para simular «pasaron 61 minutos» sin esperar.", r:["D4"]},
+      {t:"m", f:"clock", to:"svc", l:"now", ret:1},
+      {t:"m", f:"svc", to:"svc", l:"isExpired(now)", i:"Devuelve !now.isBefore(expiresAt): en el instante exacto expiresAt el enlace ya venció. No depende de que haya corrido la limpieza.", r:["D2","D3","I1","TC-03","TC-04"]},
+      {t:"begin", k:"alt", l:"[no existe o now ≥ expiresAt]"},
+      {t:"m", f:"svc", to:"rc", l:"LinkNotAvailableException", ret:1, i:"Un enlace vencido y uno inexistente se tratan igual.", r:["D7","TC-05"]},
+      {t:"m", f:"rc", to:"nav", l:"404 enlace-no-disponible.html", ret:1, i:"Página «Este enlace expiró o no existe» con un botón para crear un enlace nuevo.", r:["C6","D7","TC-03","TC-04","TC-05"]},
+      {t:"else", l:"[vigente]"},
+      {t:"m", f:"svc", to:"rc", l:"ShortLink", ret:1},
+      {t:"m", f:"rc", to:"nav", l:"302 Found · Location: originalUrl", ret:1, i:"302 y nunca 301: el navegador guarda un 301 en caché y seguiría redirigiendo después del vencimiento.", r:["D20","I3","TC-01","TC-02","TC-32"]},
+      {t:"end"}
+    ]
+  },
+  qr: {
+    title:"Obtener el código QR", sub:"GET /api/v1/links/{alias}/qr",
+    desc:"Único lugar donde se genera el QR. La web y la extensión muestran esta imagen, y la descarga sale del mismo endpoint.",
+    parts:[
+      {id:"cli", label:"Web / Extensión", kind:"actor"},
+      {id:"api", label:"LinkApiController", layer:"web"},
+      {id:"svc", label:"ResolveLinkService", layer:"app"},
+      {id:"repo", label:"ShortLinkRepository", layer:"dom"},
+      {id:"qr", label:"ZxingQrCodeGenerator", layer:"infra"}
+    ],
+    steps:[
+      {t:"m", f:"cli", to:"api", l:"GET …/{alias}/qr?size&download", i:"size por defecto 256. download=true pide el archivo como descarga.", r:["D21","D22"]},
+      {t:"begin", k:"alt", l:"[size fuera de 128..1024]"},
+      {t:"m", f:"api", to:"cli", l:"400 Bad Request", ret:1, i:"Qué hacer con un tamaño fuera de rango está pendiente (E7). La recomendación es responder 400, porque ajustarlo en silencio esconde el error.", r:["E7","R17","TC-53"]},
+      {t:"else", l:"[size válido]"},
+      {t:"m", f:"api", to:"svc", l:"resolve(alias)", i:"Comprueba que el enlace exista y esté vigente, igual que la redirección.", r:["I1","D7"]},
+      {t:"m", f:"svc", to:"repo", l:"findByAlias(alias)"},
+      {t:"m", f:"repo", to:"svc", l:"Optional<ShortLink>", ret:1},
+      {t:"begin", k:"alt", l:"[no existe o venció]"},
+      {t:"m", f:"svc", to:"api", l:"LinkNotAvailableException", ret:1},
+      {t:"m", f:"api", to:"cli", l:"404 Not Found", ret:1, i:"El QR de un enlace vencido o inexistente no se genera.", r:["D7","TC-52"]},
+      {t:"else", l:"[vigente]"},
+      {t:"m", f:"api", to:"api", l:"shortUrl = app.base-url + alias", i:"La URL que codifica el QR sale siempre de la configuración, nunca de los headers de la petición.", r:["D23","I4","TC-33"]},
+      {t:"m", f:"api", to:"svc", l:"qrPng(shortUrl, size)"},
+      {t:"m", f:"svc", to:"qr", l:"generatePng(shortUrl, size)", i:"Adaptador de ZXing detrás del puerto QrCodeGenerator.", r:["D21"]},
+      {t:"m", f:"qr", to:"svc", l:"byte[] PNG", ret:1},
+      {t:"m", f:"svc", to:"api", l:"byte[] PNG", ret:1},
+      {t:"note", over:["api","cli"], l:"Si download=true, la respuesta agrega Content-Disposition: attachment; filename={alias}.png"},
+      {t:"m", f:"api", to:"cli", l:"200 OK · image/png", ret:1, i:"La imagen decodificada es igual a la URL corta. El nombre de descarga lo pone el servidor porque el atributo HTML download no funciona entre orígenes distintos (caso de la extensión).", r:["C11","D22","TC-50","TC-51"]},
+      {t:"end"},
+      {t:"end"}
+    ]
+  },
+  limpieza: {
+    title:"Limpiar enlaces vencidos", sub:"@Scheduled(cron = app.cleanup.cron)",
+    desc:"Solo ordena la base. La exactitud del vencimiento no depende de esta tarea: se evalúa al leer.",
+    parts:[
+      {id:"sch", label:"Planificador (Spring)", kind:"actor"},
+      {id:"job", label:"ExpiredLinksCleanupJob", layer:"infra"},
+      {id:"svc", label:"ExpiredLinksCleanupService", layer:"app"},
+      {id:"clock", label:"Clock", layer:"cfg"},
+      {id:"repo", label:"ShortLinkRepository", layer:"dom"},
+      {id:"db", label:"Base de datos", layer:"infra"}
+    ],
+    steps:[
+      {t:"m", f:"sch", to:"job", l:"run() según app.cleanup.cron", i:"@Scheduled, una vez por día por defecto. Requiere @EnableScheduling.", r:["D5"]},
+      {t:"m", f:"job", to:"svc", l:"cleanup()"},
+      {t:"m", f:"svc", to:"clock", l:"instant()", i:"Clock inyectable: los tests fijan la hora.", r:["D4"]},
+      {t:"m", f:"clock", to:"svc", l:"now", ret:1},
+      {t:"m", f:"svc", to:"repo", l:"deleteExpiredBefore(now)", i:"JPQL con expiresAt <= now. Respeta el intervalo semiabierto y nunca alcanza a un enlace vigente.", r:["D3","D5","I6","TC-40","TC-41","TC-42"]},
+      {t:"m", f:"repo", to:"db", l:"DELETE … WHERE expires_at <= now"},
+      {t:"m", f:"db", to:"repo", l:"n filas", ret:1},
+      {t:"m", f:"repo", to:"svc", l:"n", ret:1},
+      {t:"m", f:"svc", to:"job", l:"n", ret:1},
+      {t:"m", f:"job", to:"job", l:"log.info(n enlaces borrados)", i:"Logging SLF4J básico: cantidad de filas borradas por el cron.", r:["D36"]}
+    ]
+  }
+};
+
+const EDGE_STYLE = {
+  assoc:{dash:"",head:null},
+  include:{dash:"dashed",head:"open",label:"«include»"},
+  extend:{dash:"dashed",head:"open",label:"«extend»"},
+  flow:{dash:"",head:"fill"},
+  usa:{dash:"dashed",head:"open"},
+  maneja:{dash:"dashed",head:"open"},
+  crea:{dash:"dashed",head:"open",label:"«create»"},
+  asoc:{dash:"",head:"open",label:"gestiona"},
+  realiza:{dash:"dashed",head:"triangle"},
+  cfg:{dash:"dotted",head:"open"}
+};
+const REL_OUT = {assoc:"Participa en", include:"Incluye", extend:"Extiende a", flow:"Sigue a", usa:"Usa", maneja:"Maneja", crea:"Crea", asoc:"Gestiona", realiza:"Implementa", cfg:"Recibe inyectado"};
+const REL_IN = {assoc:"Actor", include:"Incluido por", extend:"Extendido por", flow:"Viene de", usa:"Usado por", maneja:"Manejado por", crea:"Creado por", asoc:"Gestionado por", realiza:"Implementado por", cfg:"Inyectado en"};
+
+/* ---------------------------------------------------------------- Utilidades */
+
+const mctx = document.createElement("canvas").getContext("2d");
+function tw(t, f){ mctx.font = f; return mctx.measureText(t).width; }
+function wrap(t, f, max){
+  const words = String(t).split(" "), lines = []; let cur = "";
+  for (const w of words){
+    const cand = cur ? cur + " " + w : w;
+    if (!cur || tw(cand, f) <= max) cur = cand; else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+function mk(tag, attrs, parent){
+  const e = document.createElementNS(NS, tag);
+  if (attrs) for (const k in attrs){ if (attrs[k] != null) e.setAttribute(k, attrs[k]); }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(parent, x, y, s, cls, anchor){
+  const t = mk("text", {x:x, y:y, "class":cls, "text-anchor":anchor || "middle"}, parent);
+  t.textContent = s; return t;
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function maxW(lines, f){ return lines.reduce((m, l) => Math.max(m, tw(l, f)), 0); }
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function codeClass(c){ c = String(c); if (c[0] === "2" || c[0] === "3" || c === "OK") return "ok"; if (c[0] === "4") return "warn"; if (c[0] === "5") return "err"; return "neutral"; }
+function refsHTML(refs){
+  if (!refs || !refs.length) return "";
+  return '<div class="refs">' + refs.map(r => {
+    const k = r.startsWith("TC") ? "T" : r.startsWith("BL") ? "D" : r[0];
+    return '<span class="ref ' + k + '">' + esc(r) + "</span>";
+  }).join("") + "</div>";
+}
+
+/* ---------------------------------------------------------------- Layout */
+
+function runLayout(nodes, edges, opts){
+  const g = new dagre.graphlib.Graph({multigraph:true});
+  g.setGraph({rankdir:opts.rankdir, nodesep:opts.nodesep, ranksep:opts.ranksep, edgesep:opts.edgesep || 16, marginx:36, marginy:36});
+  g.setDefaultEdgeLabel(() => ({}));
+  nodes.forEach(n => g.setNode(n.id, {width:n.w, height:n.h}));
+  edges.forEach((e, i) => {
+    const a = e.rev ? e.to : e.from, b = e.rev ? e.from : e.to;
+    const lab = e.label ? {width: tw(e.label, F.monoS) + 12, height: 16, labelpos:"c"} : {};
+    g.setEdge(a, b, Object.assign({minlen:e.minlen || 1, weight:e.weight || 1}, lab), "e" + i);
+  });
+  dagre.layout(g);
+  const byId = new Map();
+  nodes.forEach(n => { const p = g.node(n.id); n.x = p.x; n.y = p.y; byId.set(n.id, n); });
+  edges.forEach((e, i) => {
+    const a = e.rev ? e.to : e.from, b = e.rev ? e.from : e.to;
+    const ed = g.edge(a, b, "e" + i);
+    let pts = ed.points.map(p => ({x:p.x, y:p.y}));
+    if (e.rev) pts.reverse();
+    const s = byId.get(e.from), t = byId.get(e.to);
+    if (pts.length < 2) pts = [{x:s.x, y:s.y}, {x:t.x, y:t.y}];
+    pts[0] = clipTo(s, pts[1]);
+    pts[pts.length - 1] = clipTo(t, pts[pts.length - 2]);
+    e.points = pts; e.lx = ed.x; e.ly = ed.y;
+  });
+  const gr = g.graph();
+  return {W:gr.width, H:gr.height};
+}
+function clipTo(n, p){
+  const dx = p.x - n.x, dy = p.y - n.y;
+  if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) return {x:n.x, y:n.y};
+  const hw = n.w / 2, hh = n.h / 2; let t;
+  if (n.shape === "ellipse") t = 1 / Math.sqrt((dx*dx)/(hw*hw) + (dy*dy)/(hh*hh));
+  else if (n.shape === "diamond") t = 1 / (Math.abs(dx)/hw + Math.abs(dy)/hh);
+  else t = Math.min(Math.abs(dx) > 1e-6 ? hw/Math.abs(dx) : Infinity, Math.abs(dy) > 1e-6 ? hh/Math.abs(dy) : Infinity);
+  return {x:n.x + dx*t, y:n.y + dy*t};
+}
+function pathD(p){
+  let d = "M" + p[0].x + "," + p[0].y;
+  if (p.length === 2) return d + " L" + p[1].x + "," + p[1].y;
+  for (let i = 1; i < p.length - 1; i++){
+    const end = (i === p.length - 2) ? p[i+1] : {x:(p[i].x + p[i+1].x)/2, y:(p[i].y + p[i+1].y)/2};
+    d += " Q" + p[i].x + "," + p[i].y + " " + end.x + "," + end.y;
+  }
+  return d;
+}
+
+/* ---------------------------------------------------------------- Dibujo */
+
+function drawEdge(layer, e){
+  const st = EDGE_STYLE[e.kind];
+  const g = mk("g", {"class":"edge " + (st.dash || "") + (e.kind === "cfg" ? " cfg-edge" : "")}, layer);
+  const p = e.points.slice();
+  const tip = p[p.length - 1], from = p[p.length - 2];
+  if (st.head){
+    const a = Math.atan2(tip.y - from.y, tip.x - from.x);
+    const L = st.head === "triangle" ? 13 : 10, W = st.head === "triangle" ? 7.5 : 5.5;
+    const bx = tip.x - L*Math.cos(a), by = tip.y - L*Math.sin(a);
+    const px = -Math.sin(a)*W, py = Math.cos(a)*W;
+    if (st.head === "open"){
+      mk("path", {d:"M"+(bx+px)+","+(by+py)+" L"+tip.x+","+tip.y+" L"+(bx-px)+","+(by-py), "class":"head-open"}, g);
+    } else {
+      p[p.length - 1] = {x:bx, y:by};
+      mk("path", {d:"M"+tip.x+","+tip.y+" L"+(bx+px)+","+(by+py)+" L"+(bx-px)+","+(by-py)+" Z", "class": st.head === "triangle" ? "head-tri" : "head-fill"}, g);
+    }
+  }
+  g.insertBefore(mk("path", {d:pathD(p), "class":"line"}), g.firstChild);
+  const label = e.label;
+  if (label && e.lx != null){
+    const w = tw(label, F.monoS) + 10;
+    mk("rect", {x:e.lx - w/2, y:e.ly - 9, width:w, height:17, rx:4, "class":"e-bg"}, g);
+    txt(g, e.lx, e.ly + 4, label, "e-label");
+  }
+  e.el = g;
+}
+
+function nodeGroup(layer, n, extraCls, aria){
+  const g = mk("g", {"class":"node k-" + n.type + (extraCls ? " " + extraCls : ""), "data-id":n.id, tabindex:"0", role:"button", "aria-label":aria}, layer);
+  n.el = g; return g;
+}
+function textLines(g, n, lines, f, cls, dy){
+  const total = lines.length * LH;
+  const y0 = n.y - total/2 + LH*0.72 + (dy || 0);
+  lines.forEach((l, i) => txt(g, n.x, y0 + i*LH, l, cls));
+}
+
+function drawActor(layer, n){
+  const g = nodeGroup(layer, n, "", "Actor: " + n.label);
+  mk("rect", {x:n.x - n.w/2, y:n.y - n.h/2, width:n.w, height:n.h, "class":"hit"}, g);
+  const cx = n.x, top = n.y - n.h/2 + 4;
+  mk("circle", {cx:cx, cy:top + 9, r:9, "class":"actor-head"}, g);
+  mk("path", {d:"M"+cx+","+(top+18)+" L"+cx+","+(top+42)+" M"+(cx-15)+","+(top+27)+" L"+(cx+15)+","+(top+27)+" M"+cx+","+(top+42)+" L"+(cx-12)+","+(top+60)+" M"+cx+","+(top+42)+" L"+(cx+12)+","+(top+60), "class":"actor-fig"}, g);
+  txt(g, cx, top + 78, n.label, "n-label");
+}
+function drawShape(layer, n){
+  let cls = "", aria = n.label;
+  if (n.type === "resp"){ cls = "r-" + codeClass(n.code); aria = n.code + " " + n.label; }
+  const g = nodeGroup(layer, n, cls, aria);
+  const x = n.x - n.w/2, y = n.y - n.h/2;
+  if (n.shape === "ellipse") mk("ellipse", {cx:n.x, cy:n.y, rx:n.w/2, ry:n.h/2, "class":"n-shape"}, g);
+  else if (n.shape === "diamond") mk("polygon", {points:n.x+","+y+" "+(x+n.w)+","+n.y+" "+n.x+","+(y+n.h)+" "+x+","+n.y, "class":"n-shape"}, g);
+  else mk("rect", {x:x, y:y, width:n.w, height:n.h, rx: n.type === "term" ? n.h/2 : (n.type === "resp" ? 9 : 6), "class":"n-shape"}, g);
+  if (n.type === "resp"){
+    const lines = [n.code].concat(n.lines);
+    const total = lines.length * LH, y0 = n.y - total/2 + LH*0.72;
+    txt(g, n.x, y0, n.code, "r-code");
+    n.lines.forEach((l, i) => txt(g, n.x, y0 + (i+1)*LH, l, "n-label"));
+  } else {
+    textLines(g, n, n.lines, n.font, "n-label");
+  }
+}
+function drawClass(layer, n){
+  const g = nodeGroup(layer, n, "L-" + n.layer, "Clase " + n.id);
+  const x = n.x - n.w/2, y = n.y - n.h/2;
+  mk("rect", {x:x, y:y, width:n.w, height:n.h, rx:3, "class":"n-shape"}, g);
+  mk("rect", {x:x, y:y, width:n.w, height:4, "class":"stripe L-" + n.layer}, g);
+  txt(g, n.x, y + 20, "«" + n.st + "»", "stereo");
+  txt(g, n.x, y + 38, n.id, "cname");
+  let cy = y + n.headH;
+  if (!n.attrs.length && !n.meths.length) return;
+  [n.attrs, n.meths].forEach(sec => {
+    mk("line", {x1:x, x2:x + n.w, y1:cy, y2:cy, "class":"sep"}, g);
+    sec.forEach((m, i) => txt(g, x + 12, cy + 18 + i*16, m, "mem", "start"));
+    cy += sec.length ? 12 + sec.length*16 : 8;
+  });
+}
+
+/* ---------------------------------------------------------------- Constructores */
+
+function buildUseCases(){
+  const nodes = [], edges = [];
+  USE.actors.forEach(a => nodes.push({id:a.id, type:"actor", label:a.label, w:Math.max(70, tw(a.label, F.sans) + 12), h:88, shape:"rect", data:a}));
+  USE.cases.forEach(c => {
+    const lines = wrap(c.label, F.sans, 150);
+    nodes.push({id:c.id, type:"usecase", label:c.label, lines:lines, font:F.sans, w:maxW(lines, F.sans) + 46, h:lines.length*LH + 26, shape:"ellipse", data:c});
+  });
+  USE.edges.forEach(([a, b, k]) => edges.push({from:a, to:b, kind:k, label:EDGE_STYLE[k].label, rev:k === "extend"}));
+  const size = runLayout(nodes, edges, {rankdir:"LR", nodesep:22, ranksep:92});
+  return {nodes:nodes, edges:edges, size:size, boundary:true};
+}
+function buildFlow(key){
+  const fl = FLOWS[key], nodes = [], edges = [];
+  fl.nodes.forEach(d => {
+    const f = d.type === "term" ? F.term : F.sans;
+    const n = {id:d.id, type:d.type, label:d.label, code:d.code, font:f, data:d};
+    if (d.type === "decision"){
+      n.lines = wrap(d.label, f, 130); const w = maxW(n.lines, f), h = n.lines.length*LH;
+      n.w = w + 84; n.h = h + 52; n.shape = "diamond";
+    } else if (d.type === "resp"){
+      n.lines = wrap(d.label, f, 190); n.w = Math.max(maxW(n.lines, f), tw(d.code, F.name)) + 32; n.h = (n.lines.length + 1)*LH + 20; n.shape = "rect";
+    } else if (d.type === "term"){
+      n.lines = wrap(d.label, f, 230); n.w = maxW(n.lines, f) + 40; n.h = n.lines.length*LH + 20; n.shape = "rect";
+    } else {
+      n.lines = wrap(d.label, f, 190); n.w = maxW(n.lines, f) + 32; n.h = n.lines.length*LH + 22; n.shape = "rect";
+    }
+    nodes.push(n);
+  });
+  fl.edges.forEach(([a, b, lab, back]) => edges.push({from:a, to:b, kind:"flow", label:lab || null, rev:!!back}));
+  const size = runLayout(nodes, edges, {rankdir:"TB", nodesep:34, ranksep:34, edgesep:20});
+  return {nodes:nodes, edges:edges, size:size};
+}
+function buildClasses(){
+  const nodes = [], edges = [];
+  CLASSES.forEach(c => {
+    const st = "«" + c.st + "»";
+    const w = Math.max(tw(c.id, F.name) + 28, tw(st, F.monoS) + 24, maxW(c.attrs.concat(c.meths), F.mono) + 26, 150);
+    const headH = 50;
+    let h = headH;
+    if (c.attrs.length || c.meths.length){
+      h += (c.attrs.length ? 12 + c.attrs.length*16 : 8) + (c.meths.length ? 12 + c.meths.length*16 : 8);
+    }
+    nodes.push({id:c.id, type:"class", layer:c.layer, st:c.st, attrs:c.attrs, meths:c.meths, w:w, h:h, headH:headH, shape:"rect", data:c});
+  });
+  CEDGES.forEach(([a, b, k]) => edges.push({from:a, to:b, kind:k, label:EDGE_STYLE[k].label || null, rev:k === "realiza", weight:k === "cfg" ? 0 : 1}));
+  const size = runLayout(nodes, edges, {rankdir:"TB", nodesep:26, ranksep:70, edgesep:12});
+  return {nodes:nodes, edges:edges, size:size};
+}
+
+function buildSeq(){
+  const S = SEQS[state.seq], n = S.parts.length, idx = {};
+  S.parts.forEach((p, i) => { idx[p.id] = i; });
+  const pw = S.parts.map(p => Math.max(tw(p.label, F.name) + 28, 120));
+  const gap = [];
+  for (let i = 0; i < n - 1; i++) gap[i] = (pw[i] + pw[i+1])/2 + 28;
+  let num = 0, tail = 0;
+  S.steps.forEach(s => {
+    if (s.t !== "m") return;
+    num++; s.n = num;
+    const a = idx[s.f], b = idx[s.to], lw = tw(num + ". " + s.l, F.sans);
+    if (a === b){
+      if (a < n - 1) gap[a] = Math.max(gap[a], lw + 70); else tail = Math.max(tail, lw + 70);
+    } else {
+      const lo = Math.min(a, b), hi = Math.max(a, b), need = lw + 40;
+      let tot = 0; for (let i = lo; i < hi; i++) tot += gap[i];
+      if (tot < need){ const add = (need - tot)/(hi - lo); for (let i = lo; i < hi; i++) gap[i] += add; }
+    }
+  });
+  const cx = [40 + pw[0]/2];
+  for (let i = 1; i < n; i++) cx[i] = cx[i-1] + gap[i-1];
+  let y = 100, minX = cx[0] - pw[0]/2, maxX = cx[n-1] + pw[n-1]/2 + tail;
+  const msgs = [], notes = [], frags = [], open = [];
+  const touch = (l, r) => { open.forEach(f => { f.l = Math.min(f.l, l); f.r = Math.max(f.r, r); }); minX = Math.min(minX, l); maxX = Math.max(maxX, r); };
+  S.steps.forEach(s => {
+    if (s.t === "m"){
+      const a = cx[idx[s.f]], b = cx[idx[s.to]], lw = tw(s.n + ". " + s.l, F.sans), self = a === b;
+      if (self){
+        y += 24; msgs.push({id:"m" + s.n, s:s, label:s.l, x1:a, y:y, self:true, lw:lw});
+        touch(a - 6, a + 44 + lw + 10); y += 40;
+      } else {
+        y += 30; msgs.push({id:"m" + s.n, s:s, label:s.l, x1:a, x2:b, y:y, self:false, lw:lw});
+        touch(Math.min(a, b), Math.max(a, b)); y += 12;
+      }
+    } else if (s.t === "note"){
+      const cs = s.over.map(id => cx[idx[id]]), l = Math.min.apply(null, cs), r = Math.max.apply(null, cs);
+      const lines = wrap(s.l, F.sans, Math.max(r - l + 80, 230) - 20);
+      const w = maxW(lines, F.sans) + 20, h = lines.length*16 + 14, xc = (l + r)/2;
+      y += 8; notes.push({x:xc - w/2, y:y, w:w, h:h, lines:lines}); touch(xc - w/2, xc + w/2); y += h + 10;
+    } else if (s.t === "begin"){
+      y += 10;
+      const f = {k:s.k, cond:s.l, y0:y, l:Infinity, r:-Infinity, h:0, elses:[]};
+      open.push(f); frags.push(f); y += 26;
+    } else if (s.t === "else"){
+      y += 8; open[open.length - 1].elses.push({y:y, cond:s.l}); y += 24;
+    } else if (s.t === "end"){
+      y += 8; const f = open.pop(); f.y1 = y;
+      if (open.length){ const p = open[open.length - 1]; p.h = Math.max(p.h, f.h + 1); }
+      y += 8;
+    }
+  });
+  frags.forEach(f => {
+    const pad = 14 + 10*f.h, tabW = tw(f.k, F.monoS) + 18;
+    f.x = f.l - pad; f.w = Math.max(f.r + pad - f.x, tabW + tw(f.cond, F.monoS) + 30);
+    f.tabW = tabW; minX = Math.min(minX, f.x); maxX = Math.max(maxX, f.x + f.w);
+  });
+  const ox = 28 - minX, H = y + 24;
+  msgs.forEach(m => { m.x = (m.self ? m.x1 + 20 : (m.x1 + m.x2)/2) + ox; });
+  return {nodes:msgs, edges:[], size:{W:maxX - minX + 56, H:H}, seq:{S:S, cx:cx, pw:pw, frags:frags, notes:notes, ox:ox, H:H, idx:idx}};
+}
+
+function seqHead(g, tx, ty, ang, filled){
+  const L = 10, W = 5.5, bx = tx - L*Math.cos(ang), by = ty - L*Math.sin(ang), px = -Math.sin(ang)*W, py = Math.cos(ang)*W;
+  if (filled) mk("path", {d:"M"+tx+","+ty+" L"+(bx+px)+","+(by+py)+" L"+(bx-px)+","+(by-py)+" Z", "class":"head-fill"}, g);
+  else mk("path", {d:"M"+(bx+px)+","+(by+py)+" L"+tx+","+ty+" L"+(bx-px)+","+(by-py), "class":"head-open"}, g);
+}
+function drawSeq(root){
+  const q = cur.seq, S = q.S, g = mk("g", {transform:"translate(" + q.ox + ",0)"}, root);
+  const gF = mk("g", null, g), gL = mk("g", null, g), gP = mk("g", null, g), gM = mk("g", null, g);
+  S.parts.forEach((p, i) => {
+    const x = q.cx[i], w = q.pw[i];
+    mk("line", {x1:x, x2:x, y1:64, y2:q.H - 16, "class":"life"}, gL);
+    const pg = mk("g", {"class": p.kind === "actor" ? "p-actor" : ""}, gP);
+    mk("rect", {x:x - w/2, y:20, width:w, height:44, rx:4, "class":"p-box"}, pg);
+    if (p.layer) mk("rect", {x:x - w/2, y:20, width:w, height:4, "class":"stripe L-" + p.layer}, pg);
+    txt(pg, x, 47, p.label, "pname");
+  });
+  q.frags.forEach(f => {
+    mk("rect", {x:f.x, y:f.y0, width:f.w, height:f.y1 - f.y0, rx:3, "class":"frag"}, gF);
+    const t = f.tabW;
+    mk("polygon", {points:f.x+","+f.y0+" "+(f.x+t)+","+f.y0+" "+(f.x+t)+","+(f.y0+11)+" "+(f.x+t-8)+","+(f.y0+19)+" "+f.x+","+(f.y0+19), "class":"frag-tab"}, gF);
+    txt(gF, f.x + 9, f.y0 + 14, f.k, "frag-kind", "start");
+    txt(gF, f.x + t + 10, f.y0 + 14, f.cond, "frag-cond", "start");
+    f.elses.forEach(e => {
+      mk("line", {x1:f.x, x2:f.x + f.w, y1:e.y, y2:e.y, "class":"frag-else"}, gF);
+      txt(gF, f.x + 10, e.y + 16, e.cond, "frag-cond", "start");
+    });
+  });
+  q.notes.forEach(nt => {
+    mk("rect", {x:nt.x, y:nt.y, width:nt.w, height:nt.h, rx:3, "class":"note-box"}, gM);
+    nt.lines.forEach((l, i) => txt(gM, nt.x + 10, nt.y + 18 + i*16, l, "note-t", "start"));
+  });
+  const pl = id => S.parts.find(p => p.id === id).label;
+  cur.nodes.forEach(m => {
+    const s = m.s, mg = mk("g", {"class":"node k-msg", "data-id":m.id, tabindex:"0", role:"button", "aria-label":"Mensaje " + s.n + ": " + pl(s.f) + " a " + pl(s.to) + ", " + s.l}, gM);
+    m.el = mg;
+    const ret = s.ret ? " ret" : "", text = s.n + ". " + s.l;
+    if (m.self){
+      mk("rect", {x:m.x1 - 6, y:m.y - 6, width:44 + m.lw + 16, height:32, "class":"hit"}, mg);
+      mk("path", {d:"M"+m.x1+","+m.y+" L"+(m.x1+34)+","+m.y+" L"+(m.x1+34)+","+(m.y+18)+" L"+m.x1+","+(m.y+18), "class":"m-line" + ret}, mg);
+      seqHead(mg, m.x1, m.y + 18, Math.PI, !s.ret);
+      txt(mg, m.x1 + 42, m.y + 13, text, "m-label", "start");
+    } else {
+      const dir = Math.sign(m.x2 - m.x1), tipx = m.x2 - dir*1;
+      mk("rect", {x:Math.min(m.x1, m.x2) - 4, y:m.y - 26, width:Math.abs(m.x2 - m.x1) + 8, height:34, "class":"hit"}, mg);
+      const lineEnd = s.ret ? tipx : tipx - dir*9;
+      mk("line", {x1:m.x1, y1:m.y, x2:lineEnd, y2:m.y, "class":"m-line" + ret}, mg);
+      seqHead(mg, tipx, m.y, dir > 0 ? 0 : Math.PI, !s.ret);
+      txt(mg, (m.x1 + m.x2)/2, m.y - 8, text, "m-label");
+    }
+  });
+}
+function selectMsg(id, center){
+  clearMarks(); state.sel = id; state.scn = null;
+  const i = cur.nodes.findIndex(m => m.id === id);
+  cur.nodes.forEach((m, j) => { if (j > i) m.el.classList.add("later"); });
+  cur.nodes[i].el.classList.add("sel");
+  if (center) centerOn(cur.nodes[i]);
+  renderPanel();
+}
+function stepSeq(d){
+  const last = cur.nodes.length - 1;
+  const i = state.sel ? cur.nodes.findIndex(m => m.id === state.sel) + d : (d > 0 ? 0 : last);
+  selectMsg(cur.nodes[clamp(i, 0, last)].id, true);
+}
+
+/* ---------------------------------------------------------------- Estado y render */
+
+const $ = id => document.getElementById(id);
+const svg = $("svg"), vp = $("vp"), canvas = $("canvas"), panel = $("panel"), extra = $("extra"), legend = $("legend");
+const state = {tab:"casos", flow:"acortar", seq:"acortar", layers:new Set(Object.keys(LAYERS)), showCfg:false, sel:null, scn:null};
+let cur = null;
+const view = {x:0, y:0, k:1};
+
+function render(){
+  vp.textContent = "";
+  state.sel = null; state.scn = null;
+  if (state.tab === "casos") cur = buildUseCases();
+  else if (state.tab === "flujos") cur = buildFlow(state.flow);
+  else if (state.tab === "secuencia") cur = buildSeq();
+  else cur = buildClasses();
+  cur.map = new Map(cur.nodes.map(n => [n.id, n]));
+  const eL = mk("g", null, vp), nL = mk("g", null, vp);
+  if (cur.boundary){
+    const ucs = cur.nodes.filter(n => n.type === "usecase");
+    const x0 = Math.min.apply(null, ucs.map(n => n.x - n.w/2)) - 22, x1 = Math.max.apply(null, ucs.map(n => n.x + n.w/2)) + 22;
+    const y0 = Math.min.apply(null, ucs.map(n => n.y - n.h/2)) - 44, y1 = Math.max.apply(null, ucs.map(n => n.y + n.h/2)) + 22;
+    mk("rect", {x:x0, y:y0, width:x1 - x0, height:y1 - y0, rx:14, "class":"boundary"}, eL);
+    txt(eL, x0 + 16, y0 + 22, "SISTEMA · LINK SHORTENER (ETAPA 1)", "boundary-label", "start");
+    cur.size.W = Math.max(cur.size.W, x1 + 30); cur.size.H = Math.max(cur.size.H, y1 + 30);
+    if (y0 < 0){ cur.size.top = y0 - 20; }
+  }
+  if (state.tab === "secuencia") drawSeq(vp);
+  cur.edges.forEach(e => drawEdge(eL, e));
+  if (state.tab !== "secuencia") cur.nodes.forEach(n => {
+    if (n.type === "actor") drawActor(nL, n);
+    else if (n.type === "class") drawClass(nL, n);
+    else drawShape(nL, n);
+  });
+  svg.classList.toggle("show-cfg", state.showCfg);
+  applyLayers();
+  renderToolbar(); renderLegend(); renderPanel();
+  fit();
+}
+
+function applyLayers(){
+  if (state.tab !== "clases") return;
+  cur.nodes.forEach(n => n.el.classList.toggle("off", !state.layers.has(n.layer)));
+  cur.edges.forEach(e => e.el.classList.toggle("off", !state.layers.has(cur.map.get(e.from).layer) || !state.layers.has(cur.map.get(e.to).layer)));
+}
+
+function clearMarks(){
+  cur.nodes.forEach(n => n.el.classList.remove("dim","sel","onpath","later"));
+  cur.edges.forEach(e => e.el.classList.remove("dim","hi"));
+}
+function select(id, center){
+  if (!cur.map.has(id)) return;
+  if (state.tab === "secuencia") return selectMsg(id, center);
+  clearMarks(); state.sel = id; state.scn = null;
+  const nb = new Set([id]);
+  cur.edges.forEach(e => {
+    const on = e.from === id || e.to === id;
+    if (on && e.kind === "cfg" && !state.showCfg && cur.map.get(id).layer !== "cfg"){ e.el.classList.add("dim"); return; }
+    e.el.classList.toggle("hi", on); e.el.classList.toggle("dim", !on);
+    if (on){ nb.add(e.from); nb.add(e.to); }
+  });
+  cur.nodes.forEach(n => { n.el.classList.toggle("dim", !nb.has(n.id)); });
+  cur.map.get(id).el.classList.add("sel");
+  if (center) centerOn(cur.map.get(id));
+  renderPanel();
+}
+function selectScenario(sid){
+  const fl = FLOWS[state.flow], sc = fl.scenarios.find(s => s.id === sid);
+  if (!sc) return;
+  clearMarks(); state.sel = null; state.scn = sid;
+  const ns = new Set(sc.path), es = new Set();
+  for (let i = 0; i < sc.path.length - 1; i++){
+    const e = cur.edges.find(e => e.from === sc.path[i] && e.to === sc.path[i+1]);
+    if (e) es.add(e);
+  }
+  cur.nodes.forEach(n => { n.el.classList.toggle("dim", !ns.has(n.id)); n.el.classList.toggle("onpath", ns.has(n.id)); });
+  cur.edges.forEach(e => { e.el.classList.toggle("hi", es.has(e)); e.el.classList.toggle("dim", !es.has(e)); });
+  renderPanel();
+}
+function clearSel(){ clearMarks(); state.sel = null; state.scn = null; renderPanel(); }
+
+/* ---------------------------------------------------------------- Toolbar, leyenda y panel */
+
+function renderToolbar(){
+  if (state.tab === "secuencia"){
+    extra.innerHTML = '<div class="seg" role="group" aria-label="Secuencia">' + Object.keys(SEQS).map(k =>
+      '<button data-seq="' + k + '" aria-pressed="' + (k === state.seq) + '">' + esc(SEQS[k].title) + "</button>").join("") + "</div>";
+  } else if (state.tab === "flujos"){
+    extra.innerHTML = '<div class="seg" role="group" aria-label="Flujo">' + Object.keys(FLOWS).map(k =>
+      '<button data-flow="' + k + '" aria-pressed="' + (k === state.flow) + '">' + esc(FLOWS[k].title) + "</button>").join("") + "</div>";
+  } else if (state.tab === "clases"){
+    extra.innerHTML = Object.keys(LAYERS).map(k =>
+      '<button class="chip-t" data-layer="' + k + '" aria-pressed="' + state.layers.has(k) + '" style="color:var(--' + k + ')"><span class="dot" style="background:var(--' + k + ')"></span><span style="color:var(--ink)">' + esc(LAYERS[k].label) + "</span></button>").join("") +
+      '<button class="chip-t" id="cfgT" aria-pressed="' + state.showCfg + '" style="color:var(--cfg)"><span class="dot" style="background:var(--cfg)"></span><span style="color:var(--ink)">Dependencias de configuración</span></button>';
+  } else {
+    extra.innerHTML = '<span class="hint">Notación UML · el rectángulo es el límite del sistema</span>';
+  }
+}
+function lg(svgInner, text){ return '<span><svg width="34" height="14" aria-hidden="true">' + svgInner + "</svg>" + esc(text) + "</span>"; }
+function renderLegend(){
+  const C = "var(--edge-line)";
+  if (state.tab === "secuencia"){
+    legend.innerHTML =
+      lg('<line x1="2" y1="7" x2="24" y2="7" stroke="' + C + '" stroke-width="1.5"/><path d="M32,7 L22,2 L22,12 Z" fill="' + C + '"/>', "Llamada") +
+      lg('<line x1="2" y1="7" x2="28" y2="7" stroke="' + C + '" stroke-width="1.5" stroke-dasharray="5 3"/><path d="M24,3 L31,7 L24,11" fill="none" stroke="' + C + '" stroke-width="1.5"/>', "Respuesta") +
+      "<span><b>alt</b> = una de dos ramas · <b>loop</b> = se repite · el recuadro ámbar es una nota</span>" +
+      "<span>Franja de color de cada participante: su capa (web, aplicación, dominio, infraestructura, configuración)</span>";
+  } else if (state.tab === "casos"){
+    legend.innerHTML =
+      lg('<line x1="2" y1="7" x2="32" y2="7" stroke="' + C + '" stroke-width="1.4"/>', "Asociación actor–caso") +
+      lg('<line x1="2" y1="7" x2="28" y2="7" stroke="' + C + '" stroke-width="1.4" stroke-dasharray="5 3"/><path d="M24,3 L31,7 L24,11" fill="none" stroke="' + C + '" stroke-width="1.4"/>', "«include»: siempre ocurre · «extend»: ocurre a veces") +
+      '<span>Referencias: C = respuesta del Cliente · D = decisión · I = invariante · TC = caso de prueba</span>';
+  } else if (state.tab === "flujos"){
+    legend.innerHTML =
+      '<span><span class="sw" style="background:var(--ink);border-color:var(--ink);border-radius:7px"></span>Inicio / fin</span>' +
+      '<span><span class="sw" style="border-color:var(--edge)"></span>Acción</span>' +
+      '<span><span class="sw" style="transform:rotate(45deg) scale(.85);border-color:var(--edge);background:color-mix(in srgb,var(--dom) 11%,var(--surface))"></span>Decisión</span>' +
+      '<span><span class="sw" style="border-color:var(--ok)"></span>Respuesta 2xx/3xx</span>' +
+      '<span><span class="sw" style="border-color:var(--warn)"></span>4xx</span>' +
+      '<span><span class="sw" style="border-color:var(--err)"></span>5xx</span>';
+  } else {
+    legend.innerHTML =
+      lg('<line x1="2" y1="7" x2="22" y2="7" stroke="' + C + '" stroke-width="1.4" stroke-dasharray="5 3"/><path d="M32,7 L21,2 L21,12 Z" fill="var(--surface)" stroke="' + C + '" stroke-width="1.4"/>', "Implementa (realización)") +
+      lg('<line x1="2" y1="7" x2="28" y2="7" stroke="' + C + '" stroke-width="1.4" stroke-dasharray="5 3"/><path d="M24,3 L31,7 L24,11" fill="none" stroke="' + C + '" stroke-width="1.4"/>', "Usa / depende de") +
+      lg('<line x1="2" y1="7" x2="28" y2="7" stroke="' + C + '" stroke-width="1.4"/><path d="M24,3 L31,7 L24,11" fill="none" stroke="' + C + '" stroke-width="1.4"/>', "Asociación") +
+      lg('<line x1="2" y1="7" x2="28" y2="7" stroke="' + C + '" stroke-width="1.4" stroke-dasharray="2 3"/><path d="M24,3 L31,7 L24,11" fill="none" stroke="' + C + '" stroke-width="1.4"/>', "Inyección de configuración") +
+      "<span>Regla de dependencias: web → aplicación → dominio ← infraestructura</span>";
+  }
+}
+
+function relationsHTML(id){
+  const out = [], inn = [];
+  cur.edges.forEach(e => {
+    if (e.kind === "flow") return;
+    if (e.from === id) out.push([REL_OUT[e.kind], e.to]);
+    else if (e.to === id) inn.push([REL_IN[e.kind], e.from]);
+  });
+  const all = out.concat(inn);
+  if (!all.length) return "";
+  return "<h3>Relaciones</h3><ul class=\"plist\">" + all.map(([rel, other]) =>
+    '<li><button class="plink" data-goto="' + esc(other) + '"><span>' + esc(nameOf(other)) + "</span><small>" + esc(rel) + "</small></button></li>").join("") + "</ul>";
+}
+function nameOf(id){ const n = cur.map.get(id); return n ? (n.label || n.id) : id; }
+
+function renderPanel(){
+  let h = "";
+  if (state.tab === "secuencia"){
+    const S = SEQS[state.seq], total = cur.nodes.length;
+    const pl = id => S.parts.find(p => p.id === id).label;
+    if (state.sel){
+      const m = cur.map.get(state.sel), s = m.s, i = cur.nodes.indexOf(m);
+      h = '<button class="back" data-back>← Volver a la secuencia</button><span class="kind">Mensaje ' + s.n + " de " + total + " · " + (s.ret ? "respuesta" : "llamada") + "</span><h2>" + esc(s.l) + "</h2>" +
+        '<p style="font:13px var(--font-mono)">' + esc(pl(s.f)) + (s.f === s.to ? " (sobre sí mismo)" : " → " + esc(pl(s.to))) + "</p>" +
+        (s.i ? "<p>" + esc(s.i) + "</p>" : "") +
+        '<div class="tgroup" style="margin-top:14px"><button class="btn" data-step="-1"' + (i === 0 ? " disabled" : "") + '>← Anterior</button><button class="btn" data-step="1"' + (i === total - 1 ? " disabled" : "") + ">Siguiente →</button></div>" +
+        (s.r ? "<h3>Referencias en contexto.md</h3>" + refsHTML(s.r) : "");
+    } else {
+      h = '<span class="kind">Diagrama de secuencia · ' + esc(S.sub) + "</span><h2>" + esc(S.title) + "</h2><p>" + esc(S.desc) + "</p>" +
+        '<div class="tgroup"><button class="btn" data-step="1">Recorrer paso a paso →</button></div>' +
+        "<h3>Mensajes</h3><ul class=\"plist\">" + cur.nodes.map(m => '<li><button class="plink" data-goto="' + m.id + '"><span>' + m.s.n + ". " + esc(m.s.l) + "</span><small>" + (m.s.ret ? "resp." : "llam.") + "</small></button></li>").join("") + "</ul>" +
+        '<p class="note">Tocá un mensaje para ver qué hace. Los pasos siguientes se atenúan para seguir el orden.</p>';
+    }
+  } else if (state.tab === "casos"){
+    if (state.sel){
+      const n = cur.map.get(state.sel), d = n.data;
+      h = '<button class="back" data-back>← Volver al resumen</button><span class="kind">' + (n.type === "actor" ? "Actor" : "Caso de uso") + "</span><h2>" + esc(d.label) + "</h2><p>" + esc(d.desc) + "</p>" + relationsHTML(n.id) + (d.refs ? "<h3>Referencias en contexto.md</h3>" + refsHTML(d.refs) : "");
+    } else {
+      h = '<span class="kind">Diagrama de casos de uso</span><h2>Qué puede hacer cada actor</h2><p>Tres actores interactúan con el sistema: quien acorta, quien abre el enlace y el planificador que limpia la base. No hay login en la Etapa 1.</p>' +
+        "<h3>Actores</h3><ul class=\"plist\">" + USE.actors.map(a => '<li><button class="plink" data-goto="' + a.id + '"><span>' + esc(a.label) + "</span></button></li>").join("") + "</ul>" +
+        "<h3>Casos de uso</h3><ul class=\"plist\">" + USE.cases.map(c => '<li><button class="plink" data-goto="' + c.id + '"><span>' + esc(c.label) + "</span></button></li>").join("") + "</ul>";
+    }
+  } else if (state.tab === "flujos"){
+    const fl = FLOWS[state.flow];
+    if (state.scn){
+      const sc = fl.scenarios.find(s => s.id === state.scn);
+      h = '<button class="back" data-back>← Volver al flujo</button><span class="kind">Escenario</span><h2>' + esc(sc.title) + '</h2><p><span class="code ' + codeClass(sc.result) + '">' + esc(sc.result) + "</span></p>" +
+        "<h3>Recorrido</h3><ol class=\"steps\">" + sc.path.map(id => {
+          const n = cur.map.get(id); return "<li>" + (n.type === "resp" ? esc(n.code) + " · " : "") + esc(n.label) + "</li>";
+        }).join("") + "</ol><h3>Casos de prueba que lo cubren</h3>" + refsHTML(sc.tcs);
+    } else if (state.sel){
+      const n = cur.map.get(state.sel), d = n.data;
+      const kinds = {term:"Inicio / fin", action:"Acción", decision:"Decisión", resp:"Respuesta HTTP"};
+      const outs = cur.edges.filter(e => e.from === n.id), ins = cur.edges.filter(e => e.to === n.id);
+      h = '<button class="back" data-back>← Volver al flujo</button><span class="kind">' + kinds[n.type] + "</span><h2>" + (n.type === "resp" ? '<span class="code ' + codeClass(n.code) + '">' + esc(n.code) + "</span> " : "") + esc(d.label) + "</h2>" +
+        (d.info ? "<p>" + esc(d.info) + "</p>" : "") +
+        (outs.length ? "<h3>Sigue con</h3><ul class=\"plist\">" + outs.map(e => '<li><button class="plink" data-goto="' + e.to + '"><span>' + esc(nameOf(e.to)) + "</span><small>" + esc(e.label || "") + "</small></button></li>").join("") + "</ul>" : "") +
+        (ins.length ? "<h3>Viene de</h3><ul class=\"plist\">" + ins.map(e => '<li><button class="plink" data-goto="' + e.from + '"><span>' + esc(nameOf(e.from)) + "</span><small>" + esc(e.label || "") + "</small></button></li>").join("") + "</ul>" : "") +
+        (d.refs ? "<h3>Referencias en contexto.md</h3>" + refsHTML(d.refs) : "");
+    } else {
+      h = '<span class="kind">Diagrama de flujo · ' + esc(fl.sub) + "</span><h2>" + esc(fl.title) + "</h2><p>" + esc(fl.desc) + "</p><h3>Escenarios</h3><ul class=\"plist\">" +
+        fl.scenarios.map(s => '<li><button class="plink" data-scn="' + s.id + '"><span>' + esc(s.title) + '</span><span class="code ' + codeClass(s.result) + '">' + esc(s.result) + "</span></button></li>").join("") +
+        '</ul><p class="note">Elegí un escenario para resaltar su recorrido y ver qué casos de prueba lo cubren.</p>';
+    }
+  } else {
+    if (state.sel){
+      const n = cur.map.get(state.sel), d = n.data;
+      const mem = d.attrs.concat(d.attrs.length && d.meths.length ? [""] : [], d.meths);
+      h = '<button class="back" data-back>← Volver al resumen</button><span class="kind" style="border-color:var(--' + d.layer + ')">' + esc(LAYERS[d.layer].long) + "</span><h2>" + esc(d.id) + "</h2><p>" + esc(d.desc) + "</p>" +
+        "<h3>Paquete</h3><p style=\"font:13px var(--font-mono)\">&lt;raíz&gt;." + esc(d.pkg) + "</p>" +
+        (mem.length ? '<h3>Miembros</h3><pre class="members">' + esc(mem.join("\n")) + "</pre>" : "") +
+        relationsHTML(d.id) + (d.refs ? "<h3>Referencias en contexto.md</h3>" + refsHTML(d.refs) : "");
+    } else {
+      h = '<span class="kind">Diagrama de clases</span><h2>Capas y puntos de extensión</h2><p>Cada cosa que el Cliente podría cambiar está detrás de una interfaz del dominio. Un cambio en la Etapa 2 o 3 debería ser una clase nueva más configuración.</p><p class="note">El paquete raíz todavía no está decidido (E6). La recomendación es ar.edu.undef.fie.pp6.shortener.</p>' +
+        Object.keys(LAYERS).map(k => {
+          const items = CLASSES.filter(c => c.layer === k);
+          return '<div class="layer-h"><span class="dot" style="color:var(--' + k + ');background:var(--' + k + ')"></span>' + esc(LAYERS[k].long) + "</div><ul class=\"plist\">" +
+            items.map(c => '<li><button class="plink" data-goto="' + c.id + '"><span>' + esc(c.id) + "</span><small>«" + esc(c.st) + "»</small></button></li>").join("") + "</ul>";
+        }).join("");
+    }
+  }
+  panel.innerHTML = h;
+}
+
+/* ---------------------------------------------------------------- Zoom y desplazamiento */
+
+function applyView(){ vp.setAttribute("transform", "translate(" + view.x + "," + view.y + ") scale(" + view.k + ")"); $("zval").textContent = Math.round(view.k*100) + "%"; }
+function fit(){
+  if (!cur) return;
+  const r = canvas.getBoundingClientRect();
+  const top = cur.size.top || 0, W = cur.size.W, H = cur.size.H - top;
+  const k = clamp(Math.min((r.width - 24)/W, (r.height - 24)/H), 0.15, 1.3);
+  view.k = k; view.x = (r.width - W*k)/2; view.y = (r.height - H*k)/2 - top*k;
+  applyView();
+}
+function zoomAt(f, cx, cy){
+  const k = clamp(view.k*f, 0.15, 3);
+  view.x = cx - (cx - view.x)*(k/view.k); view.y = cy - (cy - view.y)*(k/view.k); view.k = k; applyView();
+}
+function centerOn(n){
+  const r = canvas.getBoundingClientRect();
+  const sx = view.x + n.x*view.k, sy = view.y + n.y*view.k;
+  if (sx > 40 && sx < r.width - 40 && sy > 40 && sy < r.height - 40) return;
+  view.x = r.width/2 - n.x*view.k; view.y = r.height/2 - n.y*view.k; applyView();
+}
+
+let drag = null;
+canvas.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  const t = e.target.closest ? e.target.closest(".node") : null;
+  drag = {x:e.clientX, y:e.clientY, vx:view.x, vy:view.y, moved:false, node:t, pid:e.pointerId};
+});
+canvas.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) > 4){
+    drag.moved = true; canvas.classList.add("dragging");
+    try { canvas.setPointerCapture(drag.pid); } catch (err) {}
+  }
+  if (drag.moved){ view.x = drag.vx + dx; view.y = drag.vy + dy; applyView(); }
+});
+function endDrag(){
+  if (drag && !drag.moved){
+    if (drag.node) select(drag.node.getAttribute("data-id"), false);
+    else if (state.sel || state.scn) clearSel();
+  }
+  drag = null; canvas.classList.remove("dragging");
+}
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", () => { drag = null; canvas.classList.remove("dragging"); });
+canvas.addEventListener("wheel", e => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  zoomAt(Math.exp(-e.deltaY*0.0022), e.clientX - r.left, e.clientY - r.top);
+}, {passive:false});
+canvas.addEventListener("keydown", e => {
+  const t = e.target.closest ? e.target.closest(".node") : null;
+  if (t && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); select(t.getAttribute("data-id"), true); }
+  if (e.key === "Escape") clearSel();
+  if (state.tab === "secuencia" && state.sel && (e.key === "ArrowDown" || e.key === "ArrowRight")){ e.preventDefault(); stepSeq(1); }
+  if (state.tab === "secuencia" && state.sel && (e.key === "ArrowUp" || e.key === "ArrowLeft")){ e.preventDefault(); stepSeq(-1); }
+});
+function centerZoom(f){ const r = canvas.getBoundingClientRect(); zoomAt(f, r.width/2, r.height/2); }
+$("zin").addEventListener("click", () => centerZoom(1.25));
+$("zout").addEventListener("click", () => centerZoom(0.8));
+$("zfit").addEventListener("click", fit);
+
+panel.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.hasAttribute("data-back")) clearSel();
+  else if (b.dataset.goto) select(b.dataset.goto, true);
+  else if (b.dataset.scn) selectScenario(b.dataset.scn);
+  else if (b.dataset.step) stepSeq(+b.dataset.step);
+});
+extra.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.seq){ state.seq = b.dataset.seq; render(); }
+  else if (b.dataset.flow){ state.flow = b.dataset.flow; render(); }
+  else if (b.dataset.layer){
+    const k = b.dataset.layer;
+    if (state.layers.has(k)) state.layers.delete(k); else state.layers.add(k);
+    b.setAttribute("aria-pressed", state.layers.has(k)); applyLayers();
+  } else if (b.id === "cfgT"){
+    state.showCfg = !state.showCfg; b.setAttribute("aria-pressed", state.showCfg); svg.classList.toggle("show-cfg", state.showCfg);
+  }
+});
+
+function setTab(tab, push){
+  if (!["casos","flujos","secuencia","clases"].includes(tab)) tab = "casos";
+  state.tab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-selected", t.dataset.tab === tab));
+  if (push){ try { history.replaceState(null, "", "#" + tab); } catch (err) {} }
+  render();
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setTab(t.dataset.tab, true)));
+
+let rt = null;
+window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(fit, 120); });
+
+function start(){
+  if (typeof dagre === "undefined"){
+    canvas.innerHTML = '<div class="err">No se pudo cargar el motor de diagramas. Recargá la página.</div>';
+    return;
+  }
+  setTab((location.hash || "").replace("#", "") || "casos", false);
+}
+const fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+Promise.race([fontsReady, new Promise(r => setTimeout(r, 1500))]).then(start, start);
+})();
+</script>
+
+</body>
+</html>
