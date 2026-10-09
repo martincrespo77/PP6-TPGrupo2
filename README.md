@@ -42,6 +42,25 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 1
 powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1
 ```
 
+## 🔁 Ciclo de cada paso (ramas de entrega)
+
+Cada integrante trabaja siempre en su rama `dev/<nombre>`. Al cerrar un paso se crea una **rama de entrega** `paso/<N>` que apunta al último commit de ese paso, y el pull request va desde esa rama a `main`. Así cada PR contiene un solo paso y no crece con el trabajo que sigue.
+
+```text
+dev/agustin ──●──●──●──●──●──●──▶ (se sigue trabajando)
+                    │        │
+                 paso/0-1  paso/2      ← ramas de entrega (congeladas)
+                    │        │
+                    ▼        ▼
+main ───────────────●────────●──────▶  (solo lo aprobado)
+```
+
+1. Construir el paso en `dev/<nombre>` (tests, mutaciones, entrada en `docs/BITACORA.md`) y hacer push.
+2. Crear la rama de entrega: `git branch paso/<N> <commit>` y `git push -u origin paso/<N>`.
+3. Abrir el PR `paso/<N>` → `main` con el resumen, las evidencias y el checklist de la revisora.
+4. Revisa y aprueba **otro integrante** (quien construye no acepta, `contexto.md` §19). Si pide cambios, se hacen en `dev/<nombre>` y se actualiza la rama de entrega.
+5. Se mergea a `main` y se actualiza `dev/<nombre>` con `git fetch origin` + `git merge origin/main`.
+
 ---
 
 ## 👥 Equipo de Trabajo
