@@ -709,7 +709,7 @@ curl.exe -I http://localhost:8080/zzzzz        # 404
 | **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: **92 tests, 0 fallos** |
 | **M** | `scripts\mutation-test.ps1 -Step 4` → **3/3 detectadas**: I1 (ignorar `isExpired` en `ResolveLinkService`, la segunda mutación de I1 en §15.4) por TC-03 y TC-04; I3 (302 → 301) por TC-01/TC-32, TC-02 y TC-06; Q7 (sin pasar a minúsculas) por TC-06. La primera mutación de I1 (`!isBefore` → `isAfter`) sigue cubierta desde el Paso 1 |
 | **E2E** | Parcial: el redirect se prueba con `curl -I` en el VPS (abajo). La prueba en navegador llega con la web (Paso 6) |
-| **V** | Ver despliegue (se completa después de desplegar) |
+| **V** | **En el VPS** (`/opt/pp6-shortener/DEPLOYED` = `d30d28f 20261009-092439`), con `curl -I` a través de Cloudflare: alias recién creado `kdz4x` → `302 Found`, `location: https://github.com/martincrespo77/PP6-TPGrupo2`, `Cache-Control: no-store`, `cf-cache-status: DYNAMIC` (Cloudflare no lo cachea); `KDZ4X` → 302 al mismo destino; `zzzzz` → `404`, `text/html;charset=UTF-8`, `no-store`; `GET /api/v1/links` → `405` |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada |
 
