@@ -637,3 +637,97 @@ También desde Swagger UI: `http://localhost:8080/swagger-ui.html` → **Enlaces
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Ok sigamos entonces con el paso 3 dentro de dev/agustin" | Caso de uso con una transacción por intento, `LinkUrls`, controlador, DTOs, ProblemDetail; 19 tests y 5 mutaciones | La mutación del reintento no se aplicaba por la codificación (corregido); un archivo quedó mutado al interrumpir el script (restaurado y documentado); al probar en el VPS apareció `secondsRemaining: 3599` (test de bordes + corrección + mutación) |
+
+---
+
+## Paso 4 – Redirección `GET /{alias}` (09/10/2026)
+
+**Estado:** completo en local y en el VPS, pendiente **A** (aceptación de Sofía).
+
+### Objetivo
+Que el enlace corto funcione en el navegador: si existe y no venció, **302** al destino; si no, **404** con la página "Este enlace expiró o no existe". Es el Paso 4 de `contexto.md` §16 y §18.4 y cubre el requerimiento 2 de la consigna (redirigir mientras esté vigente).
+
+### Estado ANTERIOR
+El Paso 3 creaba enlaces por API, pero abrir `https://paradigmas6.agustingimenez.ar/xxxxx` daba el 404 genérico de Spring. `web/redirect` solo tenía su `package-info.java`.
+
+### Qué es NUEVO
+| Archivo | Acción | Para qué sirve |
+|---|---|---|
+| `application/ResolveLinkService.java` | nuevo | Caso de uso: normaliza el alias a minúsculas, lo busca y descarta el vencido (I1, Q7). Loguea redirecciones y 404 (D36) |
+| `web/redirect/RedirectController.java` | nuevo | `GET /{alias:[A-Za-z0-9]{1,16}}` → 302 + `Location`, o 404 + página HTML. `Cache-Control: no-store` en ambos casos |
+| `static/enlace-no-disponible.html` | nuevo | "Este enlace expiró o no existe" + botón "Crear un enlace nuevo"; se adapta al celular |
+| `ResolveLinkServiceTest`, `RedirectControllerTest` | nuevos | 13 tests (ver tabla abajo) |
+| `support/MutableClock.java` (test) | nuevo | Reloj que se adelanta a mano: simula el paso de los 60 minutos sin esperar |
+
+### Qué se MODIFICÓ y por qué
+Solo `scripts/mutation-test.ps1` (3 mutaciones del Paso 4). No se tocó código de pasos anteriores: la regla de vencimiento ya estaba en `ShortLink.isExpired` desde el Paso 1.
+
+### Cómo funciona (explicado simple)
+```text
+GET /XT3SE
+  └─ RedirectController (solo si el path es 1-16 letras o dígitos)
+       └─ ResolveLinkService.resolve("XT3SE")
+            1. "XT3SE" → "xt3se"                       (Q7)
+            2. findByAlias("xt3se")
+            3. ¿existe y now < expiresAt?              (I1, se evalúa en cada pedido)
+       sí → 302 Found, Location: https://destino..., Cache-Control: no-store
+       no → 404, enlace-no-disponible.html, Cache-Control: no-store
+```
+
+### Decisiones de diseño
+- **302 y no 301** (D20, I3): un 301 significa "se mudó para siempre" y el navegador lo **guarda en caché**. Después del minuto 60 el navegador seguiría redirigiendo sin consultar al servidor, y el vencimiento dejaría de cumplirse. Con 302 cada visita pasa por el servidor, que vuelve a evaluar el vencimiento. `307` no aporta nada porque la redirección es siempre `GET`.
+- **`Cache-Control: no-store`** además del 302: garantiza que ni el navegador ni un intermediario (el VPS está detrás de Cloudflare) guarden la respuesta. Sin esto, un 302 se puede cachear si alguien agrega headers de caché más adelante.
+- **Vencido e inexistente responden igual** (D7): misma página, mismo status. Con borrado físico no hay forma de distinguirlos, y así nadie puede averiguar qué alias existieron.
+- **El vencimiento se evalúa al leer** (D2, ADR-0001): el enlace deja de redirigir en el milisegundo exacto en que vence, aunque el cron no haya corrido. Lo prueba TC-04.
+- **Patrón `[A-Za-z0-9]{1,16}`** (D15): sin puntos ni barras, así que `/index.html`, `/swagger-ui.html` y `/api/...` nunca llegan a este controlador.
+- **La página se lee una vez al arrancar** y se devuelve como bytes: el 404 no depende del servidor de archivos estáticos. Si el archivo faltara, la aplicación no arranca.
+- **`@Hidden` en Swagger:** el redirect es para navegadores, no forma parte de la API REST.
+
+### Cómo probarlo
+```powershell
+gradlew.bat test                                                              # 92 tests
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 4    # 3 mutaciones
+# A mano (la app levantada): crear un enlace y pedir solo los headers
+curl.exe -s -X POST http://localhost:8080/api/v1/links -H "Content-Type: application/json" -d "{\"url\":\"https://ejemplo.com\"}"
+curl.exe -I http://localhost:8080/<alias>      # 302 + Location
+curl.exe -I http://localhost:8080/zzzzz        # 404
+```
+| Test | Qué verifica |
+|---|---|
+| `tc01_...` (servicio) / `tc01_tc32_...` (HTTP) | TC-01 / TC-32: en `createdAt` → **302** (no 301) con `Location` exacto y `no-store` |
+| `tc02_...` | TC-02: un milisegundo antes de vencer → 302 |
+| `tc03_...` | TC-03 / I1: en `expiresAt` exacto → 404, sin `Location`, página HTML con el texto y el botón |
+| `tc04_...` | TC-04: a los 61 minutos → 404, **con la fila todavía en la base** (el cron no corrió) |
+| `tc04_tc05_...` | TC-04 + TC-05 / D7: el vencido y el inexistente devuelven **el mismo cuerpo**, byte a byte |
+| `tc06_...` | TC-06 / Q7: `XT3SE` y `Xt3Se` redirigen a `xt3se` |
+| `tc36_...` | TC-36 / I7: `GET /api/v1/links` → 405, sin alias ni URLs en la respuesta |
+| `staticPagesAreNotTreatedAsAliases` | `/` e `/index.html` siguen respondiendo 200 |
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: **92 tests, 0 fallos** |
+| **M** | `scripts\mutation-test.ps1 -Step 4` → **3/3 detectadas**: I1 (ignorar `isExpired` en `ResolveLinkService`, la segunda mutación de I1 en §15.4) por TC-03 y TC-04; I3 (302 → 301) por TC-01/TC-32, TC-02 y TC-06; Q7 (sin pasar a minúsculas) por TC-06. La primera mutación de I1 (`!isBefore` → `isAfter`) sigue cubierta desde el Paso 1 |
+| **E2E** | Parcial: el redirect se prueba con `curl -I` en el VPS (abajo). La prueba en navegador llega con la web (Paso 6) |
+| **V** | Ver despliegue (se completa después de desplegar) |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada |
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Por qué 302 y no 301?** → El navegador guarda un 301 para siempre y no vuelve a preguntar: el enlace seguiría funcionando después de vencer. Con 302 cada clic pasa por el servidor. La mutación I3 demuestra que los tests lo detectan.
+- **¿Qué pasa en el minuto 60 exacto?** → 404. El intervalo es `[createdAt, expiresAt)`. TC-02 (59:59.999 → 302) y TC-03 (60:00.000 → 404) lo prueban sin esperar, con un reloj que se adelanta a mano.
+- **Si el cron corre una vez por día, ¿un enlace vencido redirige hasta que se borre?** → No. El vencimiento se evalúa en cada pedido. El cron solo libera espacio en la base (TC-04).
+- **¿Por qué el mismo mensaje para vencido e inexistente?** → Con borrado físico no se pueden distinguir, y así tampoco se filtra información sobre qué alias existieron.
+- **¿Cómo evitan que `/index.html` se tome como un alias?** → El patrón de la ruta solo acepta letras y dígitos; el punto lo excluye.
+- **¿Por qué funciona en mayúsculas?** → Los alias se generan en minúsculas, así que se normaliza antes de buscar. Así un alias dictado o copiado a mano funciona igual.
+
+### Preparado para cambios
+- **Contador de visitas o estadísticas:** se agrega en `ResolveLinkService` (o con un evento) sin tocar el controlador.
+- **Página de "vencido" distinta de "no existe":** requeriría guardar historial (revertir ADR-0002); el controlador ya separa los dos caminos de respuesta.
+- **Alias con mayúsculas significativas:** quitar la normalización y ampliar el alfabeto en la configuración.
+- **Página de aviso antes de redirigir** (contra phishing): otra respuesta en el controlador, sin tocar el caso de uso.
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Ok sigamos" | Paso 4 con TDD: `ResolveLinkService`, `RedirectController` (302/404, `no-store`), página de no disponible, reloj de test que se adelanta a mano, 3 mutaciones | Verde al primer intento; las 3 mutaciones detectadas confirman que los tests no pasan por casualidad |

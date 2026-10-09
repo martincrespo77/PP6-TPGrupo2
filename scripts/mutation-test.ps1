@@ -60,7 +60,16 @@ $mutations = @(
      Tests = '*ShortenLinkServiceTest*' },
   @{ Step = 3; Id = 'D24'; File = "$src/web/api/ShortLinkResponse.java"
      From = 'Math.ceilDiv(millis, 1000)'; To = 'Math.floorDiv(millis, 1000)'
-     Tests = '*ShortLinkResponseTest*' }
+     Tests = '*ShortLinkResponseTest*' },
+  @{ Step = 4; Id = 'I1-resolve'; File = "$src/application/ResolveLinkService.java"
+     From = '.filter(link -> !link.isExpired(now))'; To = '.filter(link -> true)'
+     Tests = '*ResolveLinkServiceTest*' },
+  @{ Step = 4; Id = 'I3'; File = "$src/web/redirect/RedirectController.java"
+     From = 'ResponseEntity.status(HttpStatus.FOUND)'; To = 'ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY)'
+     Tests = '*RedirectControllerTest*' },
+  @{ Step = 4; Id = 'Q7'; File = "$src/application/ResolveLinkService.java"
+     From = 'String normalized = alias.toLowerCase(Locale.ROOT);'; To = 'String normalized = alias;'
+     Tests = '*ResolveLinkServiceTest*' }
 )
 
 $survivors = 0
