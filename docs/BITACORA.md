@@ -480,7 +480,7 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 2    # 
 | **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Primera corrida en verde: 56/57, falló `https://example.com:99999/`, porque `java.net.URI` acepta cualquier puerto numérico. Se agregó el chequeo `<= 65535` → **57 tests, 0 fallos** |
 | **M** | `scripts\mutation-test.ps1 -Step 2` → **6/6 detectadas**: D17 (`>` → `>=`) por TC-15; D16 (aceptar `ftp`) por TC-12; D19 (sin chequeo de host) por TC-18; D10 (sin reservadas) por los dos TC-26; TTL (sin sumar) por los 2 tests de vencimiento; CLK (sin truncar) por `ClockConfigTest`. La mutación de I1 que pide §18.4 para este paso ya está cubierta desde el Paso 1 |
 | **E2E** | No aplica (sin interfaz) |
-| **V** | Despliegue con `scripts\deploy.ps1` (ver commit desplegado en `/opt/pp6-shortener/DEPLOYED`) y `https://paradigmas6.agustingimenez.ar/` → 200 |
+| **V** | `wiresTheConfiguredStrategies` levanta el contexto real con las tres estrategias. **En el VPS:** `scripts\deploy.ps1` desplegó `276610d` (build + 57 tests, hash verificado, health check OK); `/opt/pp6-shortener/DEPLOYED` = `276610d 20261009-084049`; servicio `active`; `https://paradigmas6.agustingimenez.ar/` → 200 |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada |
 
