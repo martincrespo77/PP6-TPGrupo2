@@ -15,8 +15,10 @@ public record ShortLinkResponse(
 		long secondsRemaining,
 		String qrUrl) {
 
+	/** Redondea hacia arriba: con redondeo hacia abajo mostraría 0 segundos con el enlace todavía vigente. */
 	static ShortLinkResponse from(ShortLink link, LinkUrls urls, Instant now) {
-		long remaining = Math.max(0, Duration.between(now, link.getExpiresAt()).toSeconds());
+		long millis = Duration.between(now, link.getExpiresAt()).toMillis();
+		long remaining = Math.max(0, Math.ceilDiv(millis, 1000));
 		return new ShortLinkResponse(
 				link.getAlias(),
 				urls.shortUrl(link.getAlias()),

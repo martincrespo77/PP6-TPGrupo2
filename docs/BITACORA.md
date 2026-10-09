@@ -557,10 +557,10 @@ Respuesta real (con `app.base-url=https://sho.rt` y reloj fijo, del test TC-61):
   "createdAt": "2026-10-08T12:00:00Z", "expiresAt": "2026-10-08T13:00:00Z",
   "secondsRemaining": 3600, "qrUrl": "https://sho.rt/api/v1/links/xt3se/qr" }
 ```
-Error (ProblemDetail, `Content-Type: application/problem+json`):
+Error real del VPS (ProblemDetail, `Content-Type: application/problem+json`; Spring omite `type` cuando es el valor por defecto `about:blank`):
 ```json
-{ "type": "about:blank", "title": "URL inválida", "status": 400,
-  "detail": "La dirección debe empezar con http:// o https://", "instance": "/api/v1/links" }
+{ "detail": "La dirección debe empezar con http:// o https://",
+  "instance": "/api/v1/links", "status": 400, "title": "URL inválida" }
 ```
 
 ### Decisiones de diseño
@@ -571,15 +571,15 @@ Error (ProblemDetail, `Content-Type: application/problem+json`):
 - **El handler de errores se limita a la API** (`basePackageClasses = LinkApiController.class`): el redirect del Paso 4 tiene que responder una página HTML de 404, no JSON.
 - **`503` con `Retry-After: 1`:** le dice al cliente que reintente en un segundo. Agotar 10 intentos con 28,6 millones de alias posibles solo pasaría con la base casi llena o por un error.
 - **`Location: <shortUrl>`** en el 201: es lo que el estándar HTTP pide para "recurso creado".
-- **`secondsRemaining`** se calcula con el mismo `Clock` (D24). Al crear, da exactamente 3600.
+- **`secondsRemaining`** se calcula con el mismo `Clock` (D24) y **redondeando hacia arriba**: al crear da 3600, y vale más que 0 si y solo si el enlace sigue vigente (ver hallazgos).
 
 #### ⚠️ Recordatorio del desvío del Paso 1
 `contexto.md` (D32, I2, §15.4) dice "reintento ante `DataIntegrityViolationException`". El servicio reintenta ante **`AliasAlreadyTakenException`** (motivos en el Paso 1). La mutación "quitar el reintento" de §15.4 se aplicó sobre ese `catch` y TC-31 la detectó.
 
 ### Cómo probarlo
 ```powershell
-gradlew.bat test                                                              # 76 tests
-powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 3    # 5 mutaciones
+gradlew.bat test                                                              # 79 tests
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 3    # 6 mutaciones
 # A mano, con la app levantada:
 curl.exe -i -X POST http://localhost:8080/api/v1/links -H "Content-Type: application/json" -d "{\"url\":\"https://ejemplo.com\"}"
 ```
@@ -601,20 +601,22 @@ También desde Swagger UI: `http://localhost:8080/swagger-ui.html` → **Enlaces
 | `tc13_...`, `tc14_...`, JSON mal formado | 400 en ProblemDetail con el mensaje en español |
 | `endpointIsDocumentedInOpenApi` | `/v3/api-docs` incluye `/api/v1/links` |
 | `LinkUrlsTest` (2) | Arma las URLs desde la base, con o sin `/` final |
+| `ShortLinkResponseTest` (3) | `secondsRemaining`: 3600 aunque la respuesta se arme 1 a 999 ms después de crear; 1 un milisegundo antes de vencer; 0 al vencer y después |
 
 ### Evidencias de cierre
 | Código | Evidencia |
 |---|---|
-| **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: **76 tests, 0 fallos** |
-| **M** | `scripts\mutation-test.ps1 -Step 3` → **5/5 detectadas**: I2 (quitar el reintento) por TC-31; I4 (`shortUrl` desde la petición con `ServletUriComponentsBuilder`) por TC-33 y TC-61; D13 (sin chequeo de bucle) por TC-25; D6 (sin borrar el vencido) por TC-22; D11 (`<=` → `<`, 9 intentos) por TC-23. La mutación I2 `persist` → `merge` sigue cubierta desde el Paso 1 |
+| **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: 76 tests en verde. El bug de `secondsRemaining` encontrado en el VPS se reprodujo primero con `ShortLinkResponseTest` (rojo, 2 fallos) y después se corrigió → **79 tests, 0 fallos** |
+| **M** | `scripts\mutation-test.ps1 -Step 3` → **6/6 detectadas**: I2 (quitar el reintento) por TC-31; I4 (`shortUrl` desde la petición con `ServletUriComponentsBuilder`) por TC-33 y TC-61; D13 (sin chequeo de bucle) por TC-25; D6 (sin borrar el vencido) por TC-22; D11 (`<=` → `<`, 9 intentos) por TC-23; D24 (`ceilDiv` → `floorDiv`) por `ShortLinkResponseTest`. La mutación I2 `persist` → `merge` sigue cubierta desde el Paso 1 |
 | **E2E** | No aplica (sin interfaz; la web llega en el Paso 6) |
-| **V** | Ver despliegue abajo |
+| **V** | **En el VPS**, `POST https://paradigmas6.agustingimenez.ar/api/v1/links` con una URL válida → `201`, `Location` y `shortUrl` con el dominio de producción (sale de `APP_BASE_URL`); con `drive.google.com/x` → `400` `application/problem+json` con el mensaje de D18. Commit desplegado en `/opt/pp6-shortener/DEPLOYED` (ver el commit de cierre del paso) |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada |
 
 **Hallazgos durante el paso (corregidos):**
 - La mutación del reintento **no se aplicó** la primera vez: el texto a buscar tenía "transacción" con tilde y PowerShell 5 lee el script con otra codificación. Se cambió por un texto sin acentos. El script ya avisa "NO APLICADA" en ese caso, así que no pasó como detectada.
 - En una corrida, al cortar la salida del script antes de tiempo, el proceso terminó sin pasar por el `finally` y `LinkUrls.java` quedó con la mutación I4 puesta. Se detectó revisando el código y se restauró a mano antes de commitear. **Regla:** no cortar ni interrumpir `mutation-test.ps1` mientras corre.
+- **Bug encontrado al probar en el VPS:** la primera versión desplegada (`96698db`) respondía `"secondsRemaining": 3599`. El controlador lee el reloj unos milisegundos después de crear el enlace y `Duration.toSeconds()` redondea hacia abajo. Los tests no lo vieron porque usaban un reloj fijo. Además, en el último segundo habría mostrado 0 con el enlace todavía vigente. Se cambió a redondeo hacia arriba (`Math.ceilDiv`), con un test de bordes y una mutación nueva (D24). **Lección:** un reloj fijo en los tests esconde el tiempo que pasa entre dos lecturas; los bordes se prueban moviendo el "ahora" a mano.
 
 ### Preguntas probables del profesor (con respuesta)
 - **¿Qué pasa si dos personas generan el mismo alias al mismo tiempo?** → Los dos intentan guardarlo; la base acepta uno (el alias es clave primaria) y rechaza el otro. El rechazado reintenta con otro alias, en una transacción nueva. Lo prueba TC-31 con dos hilos reales.
@@ -634,4 +636,4 @@ También desde Swagger UI: `http://localhost:8080/swagger-ui.html` → **Enlaces
 ### Prompts utilizados (registro de IA)
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
-| "Ok sigamos entonces con el paso 3 dentro de dev/agustin" | Caso de uso con una transacción por intento, `LinkUrls`, controlador, DTOs, ProblemDetail; 19 tests y 5 mutaciones | La mutación del reintento no se aplicaba por la codificación (corregido); un archivo quedó mutado al interrumpir el script (restaurado y documentado) |
+| "Ok sigamos entonces con el paso 3 dentro de dev/agustin" | Caso de uso con una transacción por intento, `LinkUrls`, controlador, DTOs, ProblemDetail; 19 tests y 5 mutaciones | La mutación del reintento no se aplicaba por la codificación (corregido); un archivo quedó mutado al interrumpir el script (restaurado y documentado); al probar en el VPS apareció `secondsRemaining: 3599` (test de bordes + corrección + mutación) |

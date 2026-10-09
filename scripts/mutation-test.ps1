@@ -57,7 +57,10 @@ $mutations = @(
      Tests = '*ShortenLinkServiceTest*' },
   @{ Step = 3; Id = 'D11'; File = "$src/application/ShortenLinkService.java"
      From = 'attempt <= maxAttempts'; To = 'attempt < maxAttempts'
-     Tests = '*ShortenLinkServiceTest*' }
+     Tests = '*ShortenLinkServiceTest*' },
+  @{ Step = 3; Id = 'D24'; File = "$src/web/api/ShortLinkResponse.java"
+     From = 'Math.ceilDiv(millis, 1000)'; To = 'Math.floorDiv(millis, 1000)'
+     Tests = '*ShortLinkResponseTest*' }
 )
 
 $survivors = 0
