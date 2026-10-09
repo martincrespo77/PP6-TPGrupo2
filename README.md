@@ -30,6 +30,18 @@ APP_BASE_URL=http://ip-o-dominio:8080 java -jar shortener.jar
 
 La bitácora de cada paso está en [`docs/BITACORA.md`](docs/BITACORA.md) y las decisiones de arquitectura en [`docs/adr/`](docs/adr/).
 
+## 🧰 Scripts
+
+| Script | Qué hace |
+| :--- | :--- |
+| `scripts\mutation-test.ps1 [-Step N]` | Rompe a propósito cada invariante del paso N (o de todos), corre los tests y verifica que alguno falle (`contexto.md` §15.4). Restaura los archivos al terminar |
+| `scripts\deploy.ps1` | Despliega el commit actual en el VPS: build + tests, sube el JAR verificando el hash, backup, reinicio, health check con **rollback automático** y verificación pública. Requiere acceso SSH por clave al VPS |
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 1
+powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1
+```
+
 ---
 
 ## 👥 Equipo de Trabajo

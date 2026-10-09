@@ -269,3 +269,129 @@ ssh VPS-DonWeb "journalctl -u pp6-shortener -n 50 --no-pager"        # logs
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "¿Podés actualizarlo en el servidor paradigmas6.agustingimenez.ar?" | Inspección de solo lectura del VPS, plan con backups, instalación de JDK 25, ajuste del servicio y de las variables, despliegue del JAR | Hash del JAR, log de arranque, `curl` local y público |
+
+---
+
+## Paso 1 – Dominio y persistencia (09/10/2026)
+
+**Estado:** completo en local, pendiente **A** (aceptación de Sofía) y despliegue (ver al final).
+
+### Objetivo
+Tener la entidad `ShortLink` con su regla de vencimiento, el puerto `ShortLinkRepository` y su implementación con `EntityManager` + JPQL. Cubre el requerimiento 3 de la consigna (persistencia con JPA/Hibernate) y el Paso 1 de `contexto.md` §16 y §18.4. Todavía no hay endpoints: este paso es la base sobre la que el Paso 3 crea enlaces y el Paso 4 redirige.
+
+### Estado ANTERIOR
+Proyecto base del Paso 0: compila, arranca y tiene los paquetes vacíos. `domain/model`, `domain/port`, `domain/exception` e `infrastructure/persistence` solo tenían su `package-info.java`. No había tablas.
+
+### Qué es NUEVO
+| Archivo | Acción | Para qué sirve |
+|---|---|---|
+| `domain/model/ShortLink.java` | nuevo | Entidad JPA (tabla `short_link`): alias como PK, URL original, `createdAt`, `expiresAt` indexado. Regla `isExpired(now)` |
+| `domain/port/ShortLinkRepository.java` | nuevo | Puerto (interfaz): `persist`, `findByAlias`, `deleteByAlias`, `deleteExpiredBefore` |
+| `domain/exception/AliasAlreadyTakenException.java` | nuevo | Excepción del dominio cuando el alias ya existe (I2) |
+| `infrastructure/persistence/JpaShortLinkRepository.java` | nuevo | Adaptador: implementa el puerto con `EntityManager` + JPQL (estilo del profesor) |
+| `ShortLinkTest.java` | nuevo | 10 tests unitarios: bordes del vencimiento y construcción inválida |
+| `JpaShortLinkRepositoryTest.java` | nuevo | 8 tests `@DataJpaTest` contra HSQLDB |
+| `ShortLinkPersistenceAcrossRestartTest.java` | nuevo | TC-35: el enlace sobrevive a un reinicio, sobre HSQLDB en modo archivo |
+| `scripts/mutation-test.ps1` | nuevo | Mutaciones de las invariantes, repetibles por cualquier integrante |
+| `scripts/deploy.ps1` | nuevo | Despliegue con verificación de hash, health check y rollback automático |
+| `README.md` | modificado | Sección "Scripts" |
+
+### Qué se MODIFICÓ y por qué
+Solo `README.md` (sección nueva). El resto del paso es código nuevo: no se tocó nada del Paso 0.
+
+### Cómo funciona (explicado simple)
+```text
+Caso de uso (Paso 3)  ──usa──▶  ShortLinkRepository (interfaz, dominio)
+                                        ▲
+                                        │ implementa
+                         JpaShortLinkRepository (infraestructura)
+                                        │ EntityManager + JPQL
+                                        ▼
+                                 HSQLDB · tabla short_link
+```
+1. **La entidad se protege sola.** El constructor no deja crear un `ShortLink` sin alias, sin URL, sin fechas o con `expiresAt` anterior o igual a `createdAt`. JPA usa un constructor `protected` vacío; el resto del código no puede.
+2. **¿Venció?** `isExpired(now)` devuelve `!now.isBefore(expiresAt)`. En el instante exacto `expiresAt` el enlace ya venció (intervalo semiabierto, D3). El "ahora" lo pasa quien llama (en los próximos pasos, desde el `Clock`), así la regla se testea sin esperar.
+3. **Guardar** (`persist`): inserta y hace `flush` en el momento. Si el alias ya existe, la base rechaza el INSERT por la clave primaria y el adaptador lo traduce a `AliasAlreadyTakenException`. Nunca sobrescribe (I2).
+4. **Buscar** (`findByAlias`): `EntityManager.find` por clave primaria.
+5. **Borrar uno** (`deleteByAlias`): busca, borra y hace `flush`. Si no existe, no hace nada.
+6. **Limpiar** (`deleteExpiredBefore(now)`): `delete from ShortLink s where s.expiresAt <= :now`, JPQL parametrizado. Devuelve cuántos borró. Usa `<=` y no `<` porque en `expiresAt` el enlace ya venció (I6).
+7. **Las escrituras exigen transacción** (`@Transactional(propagation = MANDATORY)`). Si alguien llama sin transacción, falla en el momento en lugar de comportarse distinto de lo esperado.
+
+DDL generado por Hibernate (verificado en el log):
+```sql
+create table short_link (alias varchar(16) not null, created_at timestamp(6) not null,
+  expires_at timestamp(6) not null, original_url varchar(2048) not null, primary key (alias))
+create index idx_short_link_expires_at on short_link (expires_at)
+```
+
+### Decisiones de diseño
+- **Puerto en el dominio, implementación en infraestructura** (D31, hexagonal liviano): los casos de uso dependen de la interfaz. Cambiar a Spring Data o a otra base es otra implementación del puerto, sin tocar los servicios. `JpaShortLinkRepository` es package-private: desde afuera solo se ve la interfaz.
+- **`EntityManager` + JPQL** y no Spring Data (R8, 🟡): es el estilo del proyecto del profesor y deja las consultas a la vista.
+- **Alias como clave primaria + `persist`, nunca `merge`** (D30, D32, ADR-0003): la base garantiza la unicidad aunque lleguen dos pedidos a la vez.
+- **`flush` dentro de `persist`:** el alias duplicado se detecta adentro de `persist`, donde el caso de uso lo puede capturar, y no recién en el commit.
+- **Entidad sin setters:** un enlace no cambia después de creado. Se reconstruye o se borra.
+- **`equals`/`hashCode` por alias:** es la identidad del enlace (su PK, asignada antes de persistir).
+
+#### ⚠️ Desvío de `contexto.md` (para revisar en grupo)
+`contexto.md` (D32, I2, TC-31, mutación de §15.4) dice que el reintento se hace "ante `DataIntegrityViolationException`". Se usó **`AliasAlreadyTakenException`**, una excepción del dominio, por dos motivos verificados:
+1. **El dominio no debe depender de Spring.** `DataIntegrityViolationException` es de Spring (`org.springframework.dao`). El puerto vive en el dominio y no debería nombrarla.
+2. **La traducción de Spring no es confiable en todos los contextos.** En el test `@DataJpaTest` la traducción automática de excepciones no estaba activa y llegó la `ConstraintViolationException` cruda de Hibernate (el test falló así la primera vez). Traducir explicitamente en el adaptador funciona igual en tests y en producción.
+
+La regla de fondo (I2: nunca sobrescribir, reintentar con otro alias) no cambia. **Propuesta:** actualizar D32, I2 y §15.4 de `contexto.md` con el nombre nuevo.
+
+#### Nota para el Paso 3
+Después de una `AliasAlreadyTakenException`, Hibernate deja la sesión inutilizable. El reintento con otro alias **no puede ocurrir dentro de la misma transacción**: el bucle de reintentos tiene que quedar afuera de la transacción, con una transacción nueva por intento. Quedó escrito en el Javadoc del puerto.
+
+#### Nota para el Paso 2
+La columna es `timestamp(6)` (microsegundos). Si el `Clock` devuelve nanosegundos, el valor guardado y el que está en memoria difieren por debajo del microsegundo. Conviene que `ExpirationPolicy` trunque los instantes (por ejemplo a milisegundos) para que la respuesta de la API y la base coincidan exactamente.
+
+### Cómo probarlo
+```powershell
+gradlew.bat test                                                              # 21 tests
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 1    # 4 mutaciones
+```
+| Test | Qué verifica |
+|---|---|
+| `ShortLinkTest` (10) | Vigente en `createdAt` y en `expiresAt − 1 ms`; vencido en `expiresAt` y después; rechaza alias/URL vacíos, fechas nulas y `expiresAt <= createdAt`; igualdad por alias |
+| `persistsAndFindsByAlias` | Guarda y recupera con todos los campos, después de limpiar el contexto (lee de la base, no de memoria) |
+| `findByAliasReturnsEmptyWhenMissing` | Alias inexistente → vacío |
+| `deleteByAliasRemovesTheLink` / `...IgnoresMissingAlias` | Borra; borrar algo inexistente no falla |
+| `expiredAliasCanBeDeletedAndReassignedInTheSameTransaction` | D6: un alias vencido se borra y se reasigna en la misma transacción |
+| `deleteExpiredBeforeRemovesOnlyLinksExpiredAtOrBeforeNow` | I6: con vencimientos en `now − 1 s`, `now` y `now + 1 s`, borra exactamente 2 y deja el futuro |
+| `writesRequireAnExistingTransaction` | Escribir sin transacción falla con `IllegalTransactionStateException` |
+| `persistNeverOverwritesAnExistingAlias` | I2 con **transacciones reales**: el segundo `persist` del mismo alias falla y el primero queda intacto |
+| `tc35_linksSurviveAnApplicationRestart` | TC-35 / C13: se levanta la app sobre un archivo HSQLDB temporal, se guarda, se apaga, se vuelve a levantar y el enlace sigue ahí |
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: `gradlew clean build` → `BUILD SUCCESSFUL`, **21 tests, 0 fallos** |
+| **M** | `scripts\mutation-test.ps1 -Step 1` → **4/4 detectadas**: I1 (`!isBefore` → `isAfter`) por `isExpiredAtExactExpirationInstant`; I2 (`persist` → `merge`) por `persistNeverOverwritesAnExistingAlias`; I6 (`<=` → `<`) por `deleteExpiredBefore...`; D6 (sin `flush`) por `deleteByAliasRemovesTheLink`. Hash de los archivos idéntico al original después de restaurar |
+| **E2E** | No aplica (sin interfaz) |
+| **V** | DDL real en el log de arranque: tabla con `alias` como PK y el índice `idx_short_link_expires_at` |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada |
+
+**Hallazgos durante el paso (corregidos):**
+- La primera versión del test de reinicio pasaba la base con `SpringApplicationBuilder.properties(...)`, que define propiedades **por defecto** (las de menor prioridad): `application.properties` le ganaba y el test escribía en `./data` del proyecto. Se corrigió pasándolas como argumentos de línea de comandos y se borró `./data` (base local de desarrollo, descartable).
+- Un comentario inicial en `deleteByAlias` decía que sin `flush` la reasignación violaría la PK. **La mutación D6 demostró que era falso** (Hibernate 7 resuelve ese orden). El `flush` se mantiene por otro motivo, verificado por el test que sí falló: sin él, el DELETE queda pendiente y se pierde si el contexto se limpia. Se corrigió el comentario.
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Por qué no usaron Spring Data (`JpaRepository`)?** → Para seguir su estilo con `EntityManager` y JPQL a la vista. Igual queda detrás de una interfaz: si mañana conviene Spring Data, se cambia una clase.
+- **¿Por qué el alias es la clave primaria y no un `id` numérico?** → Porque es lo que identifica al enlace y la base garantiza que no se repita, incluso con pedidos simultáneos. Como los vencidos se borran (ADR-0002), no hace falta un historial con `id` propio.
+- **¿Por qué `persist` y no `merge`?** → `merge` con un alias existente lo **actualiza**: pisaría en silencio un enlace vigente. `persist` falla, y eso es lo que queremos. Lo prueba la mutación I2.
+- **¿Qué pasa en el minuto 60 exacto?** → Ya venció: `isExpired` usa `!now.isBefore(expiresAt)`. Lo prueba `isExpiredAtExactExpirationInstant`, y la mutación I1 demuestra que el test detecta el error.
+- **¿Por qué la regla de vencimiento está en la entidad y no en el servicio?** → Porque es una regla del enlace. Así el redirect, el QR y la limpieza usan la misma, sin copiarla.
+- **¿Cómo prueban que los datos sobreviven a un reinicio?** → TC-35 levanta la aplicación completa sobre un archivo, guarda, la apaga y la vuelve a levantar.
+- **¿Qué es `Propagation.MANDATORY`?** → Que el método exige una transacción ya abierta. La transacción la define el caso de uso, no el repositorio.
+
+### Preparado para cambios
+- **Historial o estadísticas** (si revierten ADR-0002): se cambia la implementación del puerto y la tabla, no los casos de uso.
+- **PostgreSQL** (ya instalado en el VPS): driver + `spring.datasource.*`; el JPQL y los tipos son estándar.
+- **Alias personalizado:** `persist` ya rechaza un alias tomado con una excepción clara, que el Paso 3 traducirá a un error HTTP.
+- **Enlaces permanentes** (`expiresAt` nulo): hoy la columna es `not null`. Habría que relajarla y que `deleteExpiredBefore` ignore los nulos (`contexto.md` §14.2).
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Vamos al siguiente paso, paso a paso, documentando, commiteando y desplegando; que quede profesional y escalable" | Paso 1 con TDD (tests primero), entidad + puerto + adaptador JPA, mutaciones versionadas, script de despliegue con rollback | Rojo → verde real; se corrigieron 2 errores propios detectados por los tests (prioridad de propiedades en el test de reinicio; comentario falso sobre el `flush`) y se registró el desvío `AliasAlreadyTakenException` |
