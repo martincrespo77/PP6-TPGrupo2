@@ -36,11 +36,30 @@ La bitácora de cada paso está en [`docs/BITACORA.md`](docs/BITACORA.md) y las 
 | :--- | :--- |
 | `scripts\mutation-test.ps1 [-Step N]` | Rompe a propósito cada invariante del paso N (o de todos), corre los tests y verifica que alguno falle (`contexto.md` §15.4). Restaura los archivos al terminar |
 | `scripts\deploy.ps1` | Despliega el commit actual en el VPS: build + tests, sube el JAR verificando el hash, backup, reinicio, health check con **rollback automático** y verificación pública. Requiere acceso SSH por clave al VPS |
+| `scripts\package-extension.ps1 [-ApiUrl URL]` | Genera `build/extension/acortador-pp6-<versión>.zip` con la extensión. Con `-ApiUrl http://localhost:8080` arma un zip que usa el backend local, sin tocar el código |
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 1
 powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1
+powershell -ExecutionPolicy Bypass -File scripts\package-extension.ps1
 ```
+
+## 🧩 Extensión para Chrome y Firefox
+
+La carpeta [`browser-extension/`](browser-extension/) es la extensión (Manifest V3, el mismo código para los dos navegadores). Al abrirla acorta la pestaña activa y muestra el enlace, el QR, **Copiar**, **Descargar QR** y la hora de vencimiento. Usa el servidor de `config.js` (por defecto https://paradigmas6.agustingimenez.ar).
+
+**Chrome / Edge**
+1. Abrir `chrome://extensions` (en Edge, `edge://extensions`).
+2. Activar **Modo de desarrollador** (arriba a la derecha).
+3. **Cargar descomprimida** → elegir la carpeta `browser-extension`.
+4. Fijar la extensión con el ícono del rompecabezas, para tenerla a mano.
+
+**Firefox**
+1. Abrir `about:debugging#/runtime/this-firefox`.
+2. **Cargar complemento temporal…** → elegir `browser-extension/manifest.json` (o el `.zip`).
+3. Firefox la quita al cerrarse: es una carga temporal porque la extensión no está firmada.
+
+En páginas que no son http/https (por ejemplo `chrome://extensions` o una pestaña nueva) el botón ACORTAR aparece deshabilitado con el aviso "Esta página no se puede acortar (solo http/https)".
 
 ## 🔁 Ciclo de cada paso
 

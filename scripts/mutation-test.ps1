@@ -93,7 +93,19 @@ $mutations = @(
      Tests = '*LinkQrControllerTest*' },
   @{ Step = 6; Id = 'I1-qr'; File = "$src/application/ResolveLinkService.java"
      From = '.filter(link -> !link.isExpired(now))'; To = '.filter(link -> true)'
-     Tests = '*LinkQrControllerTest*' }
+     Tests = '*LinkQrControllerTest*' },
+  @{ Step = 8; Id = 'D45-origen'; File = "$src/config/CorsConfig.java"
+     From = '.allowedOriginPatterns(EXTENSION_ORIGINS)'; To = '.allowedOriginPatterns("*")'
+     Tests = '*CorsConfigTest*' },
+  @{ Step = 8; Id = 'D45-ruta'; File = "$src/config/CorsConfig.java"
+     From = 'registry.addMapping("/api/**")'; To = 'registry.addMapping("/**")'
+     Tests = '*CorsConfigTest*' },
+  @{ Step = 8; Id = 'D45-metodos'; File = "$src/config/CorsConfig.java"
+     From = '.allowedMethods("GET", "POST")'; To = '.allowedMethods("*")'
+     Tests = '*CorsConfigTest*' },
+  @{ Step = 8; Id = 'D45-expuestos'; File = "$src/config/CorsConfig.java"
+     From = '.exposedHeaders(HttpHeaders.LOCATION, HttpHeaders.RETRY_AFTER)'; To = ''
+     Tests = '*CorsConfigTest*' }
 )
 
 $survivors = 0
