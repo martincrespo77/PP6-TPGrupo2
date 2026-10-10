@@ -1,0 +1,87 @@
+:root {
+	--accent: #1a73e8;
+	--accent-dark: #1558b0;
+	--text: #222;
+	--muted: #666;
+	--border: #d0d7de;
+	--error: #b3261e;
+	--warning: #8a5300;
+	--success: #1e7d32;
+}
+
+* { box-sizing: border-box; }
+
+/* Las clases con display (p. ej. .button) pisan el atributo hidden si no se fuerza. */
+[hidden] { display: none !important; }
+
+body {
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	color: var(--text);
+	margin: 0;
+	background: #f6f8fa;
+}
+
+main { max-width: 640px; margin: 0 auto; padding: 2.5rem 1rem; }
+
+h1 { margin: 0 0 .25rem; font-size: 1.8rem; }
+h2 { margin: 0 0 1rem; font-size: 1.2rem; }
+
+.muted { color: var(--muted); }
+
+label { display: block; font-weight: 600; margin: 1.5rem 0 .4rem; }
+
+.row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+
+input {
+	flex: 1 1 260px;
+	min-width: 0;
+	padding: .7rem .8rem;
+	font-size: 1rem;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+}
+
+input:focus, button:focus-visible, a:focus-visible { outline: 3px solid #9ec5ff; outline-offset: 1px; }
+
+button, .button {
+	padding: .7rem 1.2rem;
+	font-size: 1rem;
+	font-weight: 600;
+	border: 0;
+	border-radius: 8px;
+	background: var(--accent);
+	color: #fff;
+	cursor: pointer;
+	text-decoration: none;
+	display: inline-block;
+}
+
+button:hover:not(:disabled), .button:hover { background: var(--accent-dark); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+
+.button.secondary { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
+.button.secondary:hover { background: #eef4fd; }
+
+.status { min-height: 1.5rem; margin: 1rem 0; font-weight: 500; }
+.status.error { color: var(--error); }
+.status.warning { color: var(--warning); }
+.status.success { color: var(--success); }
+.status.info { color: var(--muted); }
+
+.card {
+	background: #fff;
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	padding: 1.25rem;
+	margin-top: .5rem;
+}
+
+.short-url { font-size: 1.15rem; font-weight: 600; word-break: break-all; flex: 1 1 200px; color: var(--accent); }
+
+.qr { display: block; margin: 1rem auto; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
+
+.card.expired .short-url { color: var(--muted); text-decoration: line-through; cursor: default; }
+.card.expired .qr { filter: grayscale(1) opacity(.3); }
+
+footer { margin-top: 3rem; font-size: .85rem; }
+footer a { color: var(--muted); }

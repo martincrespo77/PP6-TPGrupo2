@@ -918,3 +918,109 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 6    # 
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Continuá con el PASO 6" | Puerto `QrCodeGenerator` + ZXing, `LinkQrService`, controlador con `size`/`download`, 404/400 ProblemDetail; tests que decodifican la imagen; 4 mutaciones | Se agregó un test para `Accept: image/png` (posible 406, descartado); se extrajo `findLive` en lugar de copiar la regla de vigencia y se re-ejecutaron las mutaciones del Paso 4 |
+
+---
+
+## Paso 7 – Cliente web (09/10/2026)
+
+**Estado:** completo en local y en el VPS, pendiente **V** (Copiar en un navegador real) y **A** (aceptación de Sofía).
+
+### Objetivo
+Que una persona sin conocimientos técnicos pueda acortar una dirección desde el navegador y llevarse el enlace y el QR (`contexto.md` §11.1, Paso 7 de §16). La web usa **solo** la API pública de los pasos 3 y 6: no hay endpoints nuevos.
+
+### Estado ANTERIOR
+`/` mostraba una página fija del Paso 0 ("El cliente web se incorpora en el Paso 6", que además tenía mal el número de paso). Para acortar había que usar Swagger o `curl`.
+
+### Qué es NUEVO
+| Archivo | Acción | Para qué sirve |
+|---|---|---|
+| `static/index.html` | reescrito | Formulario "Dirección a acortar" + ACORTAR, zona de estado (`role="status"`) y tarjeta de resultado |
+| `static/app.js` | nuevo | Llama a `POST /api/v1/links`, muestra los 6 estados, copia el enlace y marca el vencimiento |
+| `static/styles.css` | nuevo | Diseño responsivo; colores por tipo de mensaje; estilo "vencido" (tachado, QR en gris) |
+| `web/WebClientStaticFilesTest.java` (test) | nuevo | 5 tests: que se sirvan los 3 archivos y los puntos que no se pueden romper sin querer |
+| `docs/evidencias/paso-7/*.png` | nuevo | Captura de cada estado |
+
+### Qué se MODIFICÓ y por qué
+Nada del backend. Durante la prueba E2E aparecieron 4 problemas, todos corregidos antes del commit:
+| Problema | Corrección |
+|---|---|
+| El texto decía "(dentro de 60 minutos)" fijo | Se quitó: la duración la decide el servidor (`app.link.ttl`), la web solo muestra la hora que recibe |
+| La hora salía "9:23 p. m.." (doble punto) | `hourCycle: 'h23'` → "21:23" |
+| "Descargar QR" seguía visible al vencer | La clase `.button` tiene `display` propio y le ganaba al atributo `hidden`. Regla global `[hidden] { display: none !important; }` y test que la exige |
+| Copiar fallaba por HTTP plano | `navigator.clipboard` solo existe en HTTPS o localhost (C14 permite HTTP). Se agregó una alternativa con `execCommand('copy')` y, si las dos fallan, un mensaje para copiar a mano |
+
+### Cómo funciona (explicado simple)
+```text
+Usuario escribe la dirección y aprieta ACORTAR
+  └─ app.js: estado "cargando" (campo y botón deshabilitados, "Acortando…")
+       └─ fetch POST /api/v1/links {"url": "..."}
+            201 → tarjeta: enlace + Copiar, QR (qrUrl), Descargar QR (qrUrl?download=true), "Vence a las HH:MM."
+                  y setTimeout(secondsRemaining) → estado "vencido"
+            400 → muestra el "detail" que manda el servidor (ej. "La dirección debe empezar con http:// o https://")
+            503 → "No pudimos generar el enlace en este momento. Probá de nuevo en unos segundos."
+            sin red / otro código → mensaje genérico (nunca una traza técnica)
+```
+La web **no valida** la URL: el campo es `type="text"` con `novalidate`. Si el navegador validara, mostraría su propio mensaje (distinto en cada navegador) y no el del servidor, que es la única regla (D8).
+
+### Decisiones de diseño
+- **HTML + JavaScript sin frameworks ni build:** son 3 archivos estáticos que Spring sirve desde `static/`. No hace falta Node ni un paso de compilación, y el profesor lo puede leer de un vistazo.
+- **Rutas relativas (`/api/v1/links`):** la misma web funciona en local y en el VPS sin cambiar nada. El test prohíbe URLs absolutas en `app.js`.
+- **El vencimiento usa `secondsRemaining`, no `expiresAt`** (D24): si el reloj de la compu del usuario está atrasado 10 minutos, `expiresAt - ahora` daría mal; los segundos restantes los calcula el servidor. `expiresAt` solo se usa para mostrar la hora local.
+- **Solo el último enlace** (C8): cada resultado nuevo reemplaza al anterior y cancela su temporizador (`clearTimeout`).
+- **Mientras carga, la tarjeta anterior sigue visible:** se reemplaza recién cuando llega la respuesta; si falla, el usuario no pierde el enlace que ya tenía.
+- **Accesibilidad:** `lang="es"`, `<label for>`, `role="status"` + `aria-live` para que un lector de pantalla anuncie los mensajes, `alt` en el QR y `aria-disabled` en el enlace vencido.
+- **Sin pruebas de mutación en este paso:** las invariantes (I1–I7) viven en el backend y ya tienen sus mutaciones. La lógica del cliente es de presentación y se verificó E2E estado por estado.
+
+### Cómo probarlo
+```powershell
+gradlew.bat test      # 124 tests
+# E2E con vencimiento corto, para ver el estado "vencido" sin esperar una hora:
+java -jar build\libs\shortener.jar --app.link.ttl=40s --spring.datasource.url=jdbc:hsqldb:mem:e2e
+# abrir http://localhost:8080/
+```
+| Test (`WebClientStaticFilesTest`) | Qué verifica |
+|---|---|
+| `rootServesTheWebClient` | `/` entrega `index.html` |
+| `homePageHasTheFormWithAccessibleLabelAndStatusRegion` | `lang="es"`, UTF-8, label "Dirección a acortar", ACORTAR, `role="status"`, `app.js` y `styles.css` enlazados |
+| `urlFieldDoesNotUseBrowserValidation...` | `novalidate` y sin `type="url"`, para que se vea el mensaje del servidor |
+| `scriptCallsTheApiWithARelativePath` | `'/api/v1/links'`, usa `secondsRemaining` y no tiene URLs absolutas |
+| `stylesheetIsServedAndHiddenWinsOverDisplayClasses` | Se sirve `styles.css` y contiene la regla de `[hidden]` |
+
+**Estados simulados:** "cargando" y "503" son difíciles de provocar con el servidor real (habría que agotar los alias). Se simularon reemplazando `window.fetch` desde las DevTools: una versión que demora 15 s y otra que responde un ProblemDetail 503. El código de `app.js` no se tocó para la prueba.
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | **124 tests, 0 fallos** (5 nuevos) |
+| **M** | No aplica (ver Decisiones de diseño) |
+| **E2E** | Los 6 estados de §11.1 en el navegador, en `docs/evidencias/paso-7/`: inicial, cargando, error 400 con el mensaje del servidor, 503, resultado con QR y vencido. En "vencido" se comprobó en el DOM que "Descargar QR" queda con `display: none` y que el servidor responde 404 para ese alias |
+| **V** | En el VPS, después del deploy (ver commit de evidencia). ⛔ **Pendiente:** probar **Copiar** en Chrome o Firefox normales. En el navegador automatizado las dos formas de copiar fallan porque la ventana no tiene el foco (`document.hasFocus() = false`), y el navegador no deja escribir en el portapapeles sin foco. En ese caso la web muestra "No se pudo copiar. Seleccioná el enlace y copialo a mano." |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada |
+
+| Estado | Captura |
+|---|---|
+| Inicial | ![inicial](evidencias/paso-7/1-inicial.png) |
+| Cargando | ![cargando](evidencias/paso-7/2-cargando.png) |
+| Error 400 | ![400](evidencias/paso-7/3-error-400.png) |
+| Sin alias (503) | ![503](evidencias/paso-7/4-sin-alias-503.png) |
+| Resultado | ![resultado](evidencias/paso-7/5-resultado.png) |
+| Vencido | ![vencido](evidencias/paso-7/6-vencido.png) |
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Dónde se valida la URL, en la web o en el servidor?** → Solo en el servidor (D8). La web muestra el mensaje que recibe. Así la extensión y la web tienen exactamente la misma regla.
+- **¿Cómo sabe la página que el enlace venció?** → Con un `setTimeout` de `secondsRemaining` segundos, que calcula el servidor. No depende del reloj de la compu del usuario.
+- **¿Qué pasa si recargo la página?** → Se pierde el resultado: la consigna pide mostrar solo el último enlace (C8) y no hay historial. El enlace sigue funcionando hasta que vence.
+- **¿Por qué no usaron React?** → Para una sola pantalla con un formulario alcanza con JavaScript del navegador. Un framework sumaría Node, un build y dependencias sin beneficio.
+- **¿Por qué el botón Copiar tiene dos métodos?** → El sitio puede servirse por HTTP plano (C14), y ahí el navegador no ofrece `navigator.clipboard`. Si tampoco funciona `execCommand`, se avisa al usuario en lugar de fallar en silencio.
+- **¿Cómo probaron el estado 503 sin romper el servidor?** → Reemplazando `fetch` en la consola del navegador por uno que devuelve un 503. El 503 del servidor ya está probado en el Paso 3 (TC-23); acá se prueba cómo lo muestra la web.
+
+### Preparado para cambios
+- **Otro idioma:** los textos están juntos en el objeto `MESSAGES` de `app.js`.
+- **Historial de enlaces:** guardar los resultados en `localStorage` y listar varias tarjetas; hoy se reemplaza a propósito (C8).
+- **Extensión (Paso 8):** reutiliza el mismo flujo de `fetch` + estados; solo cambia que la URL de la API es absoluta y necesita CORS.
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Continuemos con el paso 7" | `index.html` + `app.js` + `styles.css` con los 6 estados de §11.1; test de archivos estáticos; E2E en el navegador con TTL de 40 s y estados simulados por DevTools | En la E2E se corrigieron el "60 minutos" fijo, la hora con doble punto, "Descargar QR" visible al vencer y el copiado por HTTP. El test de "sin localhost" fallaba por un comentario y se cambió por "sin URLs absolutas", que es lo que importa |

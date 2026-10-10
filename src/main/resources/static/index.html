@@ -3,18 +3,43 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>PP6 Link Shortener</title>
-	<style>
-		body { font-family: system-ui, sans-serif; max-width: 640px; margin: 4rem auto; padding: 0 1rem; color: #222; }
-		h1 { margin-bottom: .25rem; }
-		.muted { color: #666; }
-		code { background: #f2f2f2; padding: .1rem .3rem; border-radius: 4px; }
-	</style>
+	<title>Acortador de enlaces – PP6</title>
+	<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-	<h1>PP6 Link Shortener</h1>
-	<p class="muted">Paradigmas de Programación VI – TP Grupo 2</p>
-	<p>Backend Spring Boot en funcionamiento. El cliente web para acortar enlaces se incorpora en el Paso 6.</p>
-	<p>Documentación de la API: <a href="/swagger-ui.html"><code>/swagger-ui.html</code></a></p>
+	<main>
+		<h1>Acortador de enlaces</h1>
+		<p class="muted">Pegá una dirección y obtené un enlace corto y su QR. Los enlaces duran 60 minutos.</p>
+
+		<form id="shorten-form" novalidate>
+			<label for="url">Dirección a acortar</label>
+			<div class="row">
+				<input id="url" name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false"
+					placeholder="https://..." required>
+				<button id="shorten" type="submit">ACORTAR</button>
+			</div>
+		</form>
+
+		<p id="status" class="status" role="status" aria-live="polite"></p>
+
+		<section id="result" class="card" hidden aria-labelledby="result-title">
+			<h2 id="result-title">Tu enlace corto</h2>
+			<div class="row">
+				<a id="short-url" class="short-url" target="_blank" rel="noopener"></a>
+				<button id="copy" type="button">Copiar</button>
+			</div>
+			<img id="qr" class="qr" width="256" height="256" alt="">
+			<div class="row">
+				<a id="download" class="button secondary">Descargar QR</a>
+			</div>
+			<p id="expires" class="muted"></p>
+		</section>
+
+		<footer class="muted">
+			Paradigmas de Programación VI – TP Grupo 2 ·
+			<a href="/swagger-ui.html">Documentación de la API</a>
+		</footer>
+	</main>
+	<script src="app.js"></script>
 </body>
 </html>
