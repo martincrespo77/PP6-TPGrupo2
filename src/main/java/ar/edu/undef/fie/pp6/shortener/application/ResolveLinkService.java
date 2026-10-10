@@ -29,16 +29,20 @@ public class ResolveLinkService {
 
 	/** @return la URL destino si el alias existe y no venció */
 	public Optional<String> resolve(String alias) {
+		Optional<ShortLink> link = findLive(alias);
+		if (link.isPresent()) {
+			log.info("Redirección alias={}", link.get().getAlias());
+		} else {
+			log.info("Alias no disponible alias={}", alias);
+		}
+		return link.map(ShortLink::getOriginalUrl);
+	}
+
+	/** El enlace, si existe y no venció. Única regla de "vigente" para el redirect y el QR. */
+	public Optional<ShortLink> findLive(String alias) {
 		String normalized = alias.toLowerCase(Locale.ROOT);
 		Instant now = clock.instant();
-		Optional<String> target = repository.findByAlias(normalized)
-				.filter(link -> !link.isExpired(now))
-				.map(ShortLink::getOriginalUrl);
-		if (target.isPresent()) {
-			log.info("Redirección alias={}", normalized);
-		} else {
-			log.info("Alias no disponible alias={}", normalized);
-		}
-		return target;
+		return repository.findByAlias(normalized)
+				.filter(link -> !link.isExpired(now));
 	}
 }

@@ -1,7 +1,9 @@
 package ar.edu.undef.fie.pp6.shortener.web.error;
 
 import ar.edu.undef.fie.pp6.shortener.domain.exception.AliasUnavailableException;
+import ar.edu.undef.fie.pp6.shortener.domain.exception.InvalidQrSizeException;
 import ar.edu.undef.fie.pp6.shortener.domain.exception.InvalidUrlException;
+import ar.edu.undef.fie.pp6.shortener.domain.exception.LinkNotFoundException;
 import ar.edu.undef.fie.pp6.shortener.web.api.LinkApiController;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	ProblemDetail invalidUrl(InvalidUrlException e) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
 		problem.setTitle("URL inválida");
+		return problem;
+	}
+
+	@ExceptionHandler(InvalidQrSizeException.class)
+	ProblemDetail invalidQrSize(InvalidQrSizeException e) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+		problem.setTitle("Tamaño inválido");
+		return problem;
+	}
+
+	@ExceptionHandler(LinkNotFoundException.class)
+	ProblemDetail linkNotFound(LinkNotFoundException e) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Este enlace expiró o no existe");
+		problem.setTitle("Enlace no disponible");
 		return problem;
 	}
 

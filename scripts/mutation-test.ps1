@@ -81,7 +81,19 @@ $mutations = @(
      Tests = '*ExpiredLinksCleanupServiceTest*' },
   @{ Step = 5; Id = 'D5-clock'; File = "$src/application/ExpiredLinksCleanupService.java"
      From = 'repository.deleteExpiredBefore(clock.instant())'; To = 'repository.deleteExpiredBefore(clock.instant().minusSeconds(3600))'
-     Tests = '*ExpiredLinksCleanupServiceTest*' }
+     Tests = '*ExpiredLinksCleanupServiceTest*' },
+  @{ Step = 6; Id = 'I4-qr'; File = "$src/application/LinkQrService.java"
+     From = 'String content = linkUrls.shortUrl(link.getAlias());'; To = 'String content = link.getOriginalUrl();'
+     Tests = '*LinkQrControllerTest*' },
+  @{ Step = 6; Id = 'D22'; File = "$src/web/api/LinkQrController.java"
+     From = 'ContentDisposition.attachment()'; To = 'ContentDisposition.inline()'
+     Tests = '*LinkQrControllerTest*' },
+  @{ Step = 6; Id = 'E7'; File = "$src/application/LinkQrService.java"
+     From = 'if (size < MIN_SIZE || size > MAX_SIZE) {'; To = 'if (false) {'
+     Tests = '*LinkQrControllerTest*' },
+  @{ Step = 6; Id = 'I1-qr'; File = "$src/application/ResolveLinkService.java"
+     From = '.filter(link -> !link.isExpired(now))'; To = '.filter(link -> true)'
+     Tests = '*LinkQrControllerTest*' }
 )
 
 $survivors = 0

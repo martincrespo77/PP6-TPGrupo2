@@ -815,3 +815,106 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 5    # 
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Ok sigamos con el paso 5" | Se corrigió el orden (§16: limpieza antes que QR). Servicio de limpieza + tarea con `@Scheduled` + `@EnableScheduling`, 6 tests, 4 mutaciones | Se verificó la zona horaria del VPS para documentar cuándo corre; queda pendiente el log real de la primera corrida |
+
+---
+
+## Paso 6 – Código QR: `GET /api/v1/links/{alias}/qr` (09/10/2026)
+
+**Estado:** completo en local y en el VPS, pendiente **V** (QR escaneado con un celular) y **A** (aceptación de Sofía).
+
+### Objetivo
+Devolver la imagen PNG del QR de un enlace vigente, para que la web y la extensión la muestren y la descarguen (D21, D22, ADR-0004). Es el Paso 6 de `contexto.md` §16 y cubre el requerimiento de la consigna de generar el QR.
+
+### Estado ANTERIOR
+La respuesta de creación ya traía `qrUrl` (Paso 3), pero esa dirección daba 404: no había endpoint. `infrastructure/qr` solo tenía su `package-info.java`. ZXing estaba en `build.gradle` desde el Paso 0, sin usar.
+
+### Qué es NUEVO
+| Archivo | Acción | Para qué sirve |
+|---|---|---|
+| `domain/port/QrCodeGenerator.java` | nuevo | Puerto: `byte[] generatePng(String content, int size)` (firma de `contexto.md` §18.4) |
+| `infrastructure/qr/ZxingQrCodeGenerator.java` | nuevo | Adaptador con ZXing: PNG cuadrado, corrección de errores M, margen de 2 módulos |
+| `application/LinkQrService.java` | nuevo | Caso de uso: valida `size` (128..1024), exige enlace vigente y codifica la `shortUrl` |
+| `domain/exception/LinkNotFoundException.java` | nuevo | Alias inexistente o vencido → 404 |
+| `domain/exception/InvalidQrSizeException.java` | nuevo | `size` fuera de rango → 400 (E7) |
+| `web/api/LinkQrController.java` | nuevo | `GET /api/v1/links/{alias}/qr?size=256&download=false` |
+| `ZxingQrCodeGeneratorTest`, `LinkQrControllerTest` | nuevos | 21 tests; **decodifican la imagen** con ZXing, como lo haría un celular |
+| `support/QrDecoder.java` (test) | nuevo | Lee un PNG y devuelve el texto del QR |
+
+### Qué se MODIFICÓ y por qué
+| Archivo | Cambio | Por qué |
+|---|---|---|
+| `application/ResolveLinkService.java` | Se separó `findLive(alias)` (normaliza + descarta vencidos) de `resolve` | El QR necesita la **misma** regla de "vigente" que el redirect. Copiarla habría dejado dos reglas que pueden divergir. Las mutaciones del Paso 4 se volvieron a correr: 3/3 detectadas |
+| `web/error/GlobalExceptionHandler.java` | 2 handlers: 404 "Este enlace expiró o no existe" y 400 de tamaño | Mismo formato ProblemDetail que el resto de la API |
+| `scripts/mutation-test.ps1` | 4 mutaciones del Paso 6 | Ver Evidencias |
+
+### Cómo funciona (explicado simple)
+```text
+GET /api/v1/links/XT3SE/qr?size=512&download=true
+  └─ LinkQrController
+       └─ LinkQrService.qrFor("XT3SE", 512)
+            1. ¿128 ≤ size ≤ 1024?                       no → 400 (E7)
+            2. ResolveLinkService.findLive("XT3SE")      → busca "xt3se", vigente   no → 404 (D7)
+            3. contenido = LinkUrls.shortUrl("xt3se")    → https://paradigmas6.agustingimenez.ar/xt3se  (I4)
+            4. ZxingQrCodeGenerator.generatePng(contenido, 512)
+  ◀─ 200 image/png, Cache-Control: no-store
+     + Content-Disposition: attachment; filename="xt3se.png"   (solo con download=true, D22)
+```
+El QR codifica la **URL corta**, no la original: así, al escanearlo, el celular pasa por el acortador y se respeta el vencimiento. Un QR de la URL original seguiría funcionando para siempre.
+
+### Decisiones de diseño
+- **QR en el backend** (D21, ADR-0004): una sola implementación para la web y la extensión, y un solo lugar que probar.
+- **Puerto `QrCodeGenerator`:** cambiar ZXing por otra biblioteca, o agregar un logo, es otra clase. El caso de uso no cambia.
+- **`size` fuera de rango → 400 y no "ajustar en silencio"** (E7, R17): si alguien pide 2048 y recibe 1024 sin aviso, el error queda escondido. Menos de 128 px no se lee bien; más de 1024 px gasta memoria del VPS (1 GB) sin beneficio.
+- **Corrección de errores nivel M (~15 %):** el QR se sigue leyendo con una pantalla con reflejos o una impresión gastada. Niveles más altos agrandan el código sin necesidad para una URL corta.
+- **`download=true` → `attachment`** (D22): el atributo HTML `download` no funciona entre orígenes distintos (la extensión es otro origen), así que el header lo tiene que poner el servidor.
+- **Errores en JSON aunque el cliente pida `image/png`:** se probó con `Accept: image/png` y Spring igual devuelve el ProblemDetail con 404/400, en lugar de un 406.
+- **`Cache-Control: no-store`:** el QR deja de estar disponible cuando el enlace vence; no debe quedar en caché.
+- **Alias normalizado en el nombre del archivo:** `XT3SE` descarga `xt3se.png`, que es el alias real.
+
+### Cómo probarlo
+```powershell
+gradlew.bat test                                                              # 119 tests
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 6    # 4 mutaciones
+# A mano: crear un enlace y abrir su qrUrl en el navegador (o agregar ?download=true)
+```
+| Test | Qué verifica |
+|---|---|
+| `ZxingQrCodeGeneratorTest` (5) | Firma PNG; se decodifica al texto exacto; mide 128, 256 y 1024 px; el alias más largo (16) se lee en 128 px |
+| `tc50_qrEncodesExactly...` | TC-50 / I4: decodificado == `https://sho.rt/xt3se` (de `app.base-url`); 256 px por defecto |
+| `tc50_ignoresRequestHeaders...` | Con `Host` y `X-Forwarded-Host` falsos, el contenido sigue saliendo de `app.base-url` |
+| `uppercaseAlias...` | `XT3SE` devuelve el QR de `xt3se` |
+| `honoursTheRequestedSize...` (3) | 128, 512 y 1024 px exactos |
+| `tc51_...` / `withoutDownload...` | TC-51 / D22: `attachment; filename="xt3se.png"` solo con `download=true` |
+| `tc52_...` (2) | TC-52 / D7: vencido (en `expiresAt` exacto) e inexistente → 404 con el mismo mensaje |
+| `tc53_...` (4) | TC-53 / E7: 64, 127, 1025 y 2048 → 400 con el rango en el mensaje (127 y 1025 son los bordes) |
+| `nonNumericSize...` | `size=grande` → 400 ProblemDetail |
+| `errorsAreReturned...OnlyAcceptsPng` | 404 y 400 llegan aunque el cliente pida solo `image/png` |
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: **119 tests, 0 fallos** |
+| **M** | `scripts\mutation-test.ps1 -Step 6` → **4/4 detectadas**: I4 (codificar la URL original) por TC-50 y 2 más; D22 (`attachment` → `inline`) por TC-51; E7 (sin validar tamaño) por los 4 casos de TC-53; I1 (ignorar el vencimiento en `findLive`) por TC-52, lo que prueba que el QR **hereda** la regla del redirect. Pasos 4 re-ejecutado tras el cambio en `ResolveLinkService`: 3/3 |
+| **E2E** | Parcial: la imagen se ve en el navegador abriendo la `qrUrl`. La integración con la web llega en el Paso 7 |
+| **V** | Ver despliegue. ⛔ **Pendiente:** escanear el QR con un celular y confirmar que abre la URL original (criterio 7 de §15.3) |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada |
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Qué contiene el QR, la URL original o la corta?** → La corta. Así el escaneo pasa por el servidor y respeta el vencimiento. Lo prueba TC-50 decodificando la imagen, y la mutación I4 demuestra que el test lo detecta.
+- **¿Por qué se genera en el servidor y no con JavaScript?** → Una sola implementación para la web y la extensión (ADR-0004), probada con tests automáticos que decodifican la imagen.
+- **¿Cómo prueban que el QR funciona sin un celular?** → El test lo decodifica con el lector de ZXing, que hace lo mismo que la cámara: lee la imagen y devuelve el texto. Igual se escanea con un celular como verificación final.
+- **¿Qué pasa con el QR cuando el enlace vence?** → El endpoint da 404 y, si alguien escanea un QR ya impreso, el redirect da la página de "expiró".
+- **¿Por qué 400 y no ajustar el tamaño?** → Ajustar en silencio esconde el error de quien llama (E7).
+- **¿Por qué el header `Content-Disposition`?** → Le dice al navegador que descargue con el nombre `{alias}.png`. El atributo `download` de HTML no funciona entre orígenes distintos, como la extensión.
+
+### Preparado para cambios
+- **QR con logo o colores:** otra implementación de `QrCodeGenerator` (o un parámetro), sin tocar el caso de uso.
+- **SVG además de PNG:** otro método en el puerto y `produces = image/svg+xml`.
+- **Rango de tamaños configurable:** pasar `MIN_SIZE`/`MAX_SIZE` a `AppProperties`.
+- **Caché del QR:** como el contenido no cambia mientras el enlace vive, se podría cachear hasta `expiresAt` (`Cache-Control: max-age = secondsRemaining`).
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Continuá con el PASO 6" | Puerto `QrCodeGenerator` + ZXing, `LinkQrService`, controlador con `size`/`download`, 404/400 ProblemDetail; tests que decodifican la imagen; 4 mutaciones | Se agregó un test para `Accept: image/png` (posible 406, descartado); se extrajo `findLive` en lugar de copiar la regla de vigencia y se re-ejecutaron las mutaciones del Paso 4 |
