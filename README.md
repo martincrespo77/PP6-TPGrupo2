@@ -19,7 +19,7 @@ Pegás una dirección larga y obtenés un **enlace corto y su código QR, válid
 | `GET /{alias}` | `302` a la URL original mientras está vigente; `404` (misma página) si venció o no existe |
 | `GET /api/v1/links/{alias}/qr?size=256&download=false` | PNG del QR (128 a 1024 px). Con `download=true` se descarga como `{alias}.png` |
 
-**Documentación:** [`docs/BITACORA.md`](docs/BITACORA.md) (cada paso, con evidencias y prompts) · [`docs/CHECKLIST-ETAPA1.md`](docs/CHECKLIST-ETAPA1.md) (criterios de aceptación) · [`docs/DEMO.md`](docs/DEMO.md) (guion de 5 minutos) · [`docs/adr/`](docs/adr/) (decisiones de arquitectura)
+**Documentación:** [`docs/BITACORA.md`](docs/BITACORA.md) (cada paso, con evidencias y prompts) · [`docs/CHECKLIST-ETAPA1.md`](docs/CHECKLIST-ETAPA1.md) (criterios de aceptación) · [`docs/DEMO.md`](docs/DEMO.md) (guion de 5 minutos) · [`docs/adr/`](docs/adr/) (decisiones de arquitectura) · [`docs/diagramas/`](docs/diagramas/) (diagramas interactivos; abrir el HTML en el navegador) · [`TP_PP6_v1.0.md`](TP_PP6_v1.0.md) (consigna)
 
 ---
 
@@ -98,8 +98,8 @@ dev/agustin ──●──●──●──●──●──▶   (paso 0, 1,
 
 ## 👥 Equipo de Trabajo
 - **Martín Crespo** (`dev/martin`)
-- **Sofía** (`dev/sofia`)
-- **Agustín** (`dev/agustin`)
+- **Sofía Ramirez** (`dev/sofia`)
+- **Agustín Gimenez** (`dev/agustin`)
 
 ---
 
