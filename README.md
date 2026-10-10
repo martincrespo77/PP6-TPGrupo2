@@ -6,6 +6,21 @@ Trabajo Práctico Integrador – **Paradigmas de Programación VI**
 
 La especificación del proyecto (fuente única de verdad) está en [`contexto.md`](contexto.md).
 
+## 🔗 Qué hace
+
+Pegás una dirección larga y obtenés un **enlace corto y su código QR, válidos por 60 minutos**. Después, el enlace da "Este enlace expiró o no existe" y el alias puede volver a usarse.
+
+- **En vivo:** https://paradigmas6.agustingimenez.ar (web) · [`/swagger-ui.html`](https://paradigmas6.agustingimenez.ar/swagger-ui.html) (API)
+- **Clientes:** la web (`src/main/resources/static/`) y la extensión para Chrome y Firefox ([`browser-extension/`](browser-extension/))
+
+| Endpoint | Qué hace |
+| :--- | :--- |
+| `POST /api/v1/links` `{"url": "..."}` | Crea el enlace → `201` con `shortUrl`, `expiresAt`, `secondsRemaining` y `qrUrl`. `400` si la URL es inválida, `503` si no hay alias libres |
+| `GET /{alias}` | `302` a la URL original mientras está vigente; `404` (misma página) si venció o no existe |
+| `GET /api/v1/links/{alias}/qr?size=256&download=false` | PNG del QR (128 a 1024 px). Con `download=true` se descarga como `{alias}.png` |
+
+**Documentación:** [`docs/BITACORA.md`](docs/BITACORA.md) (cada paso, con evidencias y prompts) · [`docs/CHECKLIST-ETAPA1.md`](docs/CHECKLIST-ETAPA1.md) (criterios de aceptación) · [`docs/DEMO.md`](docs/DEMO.md) (guion de 5 minutos) · [`docs/adr/`](docs/adr/) (decisiones de arquitectura)
+
 ---
 
 ## ⚙️ Compilar y ejecutar
@@ -17,6 +32,9 @@ Stack: **Java 25**, Spring Boot 4.1.1, Gradle 9.8.1 (wrapper incluido: no hace f
 | Compilar + tests | `./gradlew build` | `gradlew.bat build` |
 | Levantar la app | `./gradlew bootRun` | `gradlew.bat bootRun` |
 | Generar el JAR | `./gradlew bootJar` → `build/libs/shortener.jar` | `gradlew.bat bootJar` |
+| Cobertura (JaCoCo) | `./gradlew check` → `build/reports/jacoco/test/html/index.html` | `gradlew.bat check` |
+
+`check` falla si la cobertura de líneas de `domain` + `application` baja del 70 % (R13).
 
 La app queda en http://localhost:8080, con HSQLDB en modo archivo (`./data/`, ignorado por git) y Swagger en http://localhost:8080/swagger-ui.html.
 
@@ -148,13 +166,4 @@ La mejor práctica es hacerlo mediante **Pull Request (PR)** en GitHub:
 1. Ve a https://github.com/martincrespo77/PP6-TPGrupo2/pulls
 2. Haz clic en **New Pull Request**.
 3. Selecciona base: `main` y compare: tu rama (`dev/martin`, `dev/sofia` o `dev/agustin`).
-4. Revisa los cambios, pide el visto bueno de tus compañeros y presiona **Merge Pull Request**.
-
-#### (Alternativa por consola si no usan PRs):
-```bash
-git checkout main
-git pull origin main
-git merge dev/tunombre
-git push origin main
-git checkout dev/tunombre
-```
+4. Asigná como revisor a **otro integrante**. Se mergea cuando lo aprueba: quien construye no acepta su propio trabajo (`contexto.md` §19). No se hace merge ni push directo a `main`.

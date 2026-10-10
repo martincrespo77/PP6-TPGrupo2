@@ -52,6 +52,30 @@ jacocoTestReport {
 	}
 }
 
+// R13: >= 70 % de líneas en dominio + aplicación. Se puede subir con -PcoverageMinimum=0.90.
+jacocoTestCoverageVerification {
+	dependsOn test
+	classDirectories.setFrom(files(classDirectories.files.collect {
+		fileTree(it) {
+			include 'ar/edu/undef/fie/pp6/shortener/domain/**'
+			include 'ar/edu/undef/fie/pp6/shortener/application/**'
+		}
+	}))
+	violationRules {
+		rule {
+			limit {
+				counter = 'LINE'
+				value = 'COVEREDRATIO'
+				minimum = new BigDecimal(findProperty('coverageMinimum') ?: '0.70')
+			}
+		}
+	}
+}
+
+tasks.named('check') {
+	dependsOn jacocoTestCoverageVerification
+}
+
 bootJar {
 	archiveFileName = 'shortener.jar'
 }

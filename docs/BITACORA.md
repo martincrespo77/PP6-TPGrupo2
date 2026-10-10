@@ -1105,7 +1105,7 @@ powershell -ExecutionPolicy Bypass -File scripts\package-extension.ps1        # 
 | **T** | TDD: `CorsConfigTest` se corrió antes de `CorsConfig` → 7 de 8 en rojo (el de la redirección pasaba porque no había CORS en ningún lado). Después: verde. Suite completa: **136 tests, 0 fallos** |
 | **M** | `mutation-test.ps1 -Step 8` → **4/4 detectadas**: D45-origen (`*` en lugar de la lista) por los 3 casos de `otherOriginsAreRejected`; D45-ruta (`/**`) por `corsOnlyAppliesToTheApi…`; D45-métodos (`*`) por `deleteIsNotAllowed…`; D45-expuestos (sin `exposedHeaders`) por `createdLinkResponseExposes…` |
 | **V** | **En el VPS** (`DEPLOYED` = `067337f`), con `curl`: preflight desde `chrome-extension://…` → `200`, `allow-origin` igual al origen, `allow-methods: GET,POST`, `expose-headers: Location, Retry-After`; preflight desde `https://sitio-malicioso.example` → `403` sin `allow-origin`; `POST` desde `moz-extension://…` → `201`, `allow-origin` igual al origen, enlace `ntsmm` con `secondsRemaining: 3600` |
-| **E2E** | ⛔ **Pendiente (manual):** el navegador automatizado no puede cargar extensiones. Hay que cargarla en Chrome y en Firefox y capturar: popup con resultado, Copiar funcionando, Descargar QR y el botón deshabilitado en `chrome://extensions` o `about:debugging` |
+| **E2E** | Prueba manual de Agustín (09/10, 21:53): "Funcionó". El navegador automatizado no puede cargar extensiones. ⛔ **Faltan las capturas** en Chrome y en Firefox: popup con resultado, Copiar, Descargar QR y el botón deshabilitado en `chrome://extensions` o `about:debugging` |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada y el README |
 
@@ -1128,3 +1128,91 @@ powershell -ExecutionPolicy Bypass -File scripts\package-extension.ps1        # 
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Continua con el paso 8" | `CorsConfig` con TDD y 4 mutaciones; extensión Manifest V3 (popup que acorta la pestaña activa); script de empaquetado; README de instalación; deploy y verificación de CORS con `curl` en el VPS | `config.js` apunta al VPS en vez de `localhost` (BL-006 ya se cumplió); zip con rutas `/` por la incompatibilidad de `Compress-Archive` con Firefox. La carga en los navegadores queda manual |
+
+---
+
+## Paso 9 – QA final (09/10/2026)
+
+**Estado:** completo en local y en el VPS. Pendientes de la Etapa 1: escanear un QR con un celular, capturas de la extensión, log del primer cron (10/10 03:00) y aceptación de Sofía. Detalle en [`CHECKLIST-ETAPA1.md`](CHECKLIST-ETAPA1.md).
+
+### Objetivo
+Revisar el sistema entero antes de la entrega, no solo el último paso: que cada criterio de aceptación tenga su prueba, que la cobertura se **exija**, que los logs y la configuración de producción estén bien, y dejar el README y la demo listos (`contexto.md` §16, Paso 9).
+
+### Estado ANTERIOR
+JaCoCo generaba el reporte pero no exigía nada: la cobertura podía bajar sin que nadie se enterara. No había un lugar único con la evidencia de los 13 criterios de §15.3. El README explicaba cómo compilar, pero no qué hace el sistema ni dónde verlo, y ofrecía mergear a `main` por consola sin revisión.
+
+### Qué es NUEVO
+| Archivo | Para qué sirve |
+|---|---|
+| `docs/CHECKLIST-ETAPA1.md` | Los 13 criterios de §15.3, cada uno con sus tests y su verificación real; resumen de mutaciones y cobertura |
+| `docs/DEMO.md` | Guion de 5 minutos minuto a minuto, preparación, plan B y preguntas probables |
+
+### Qué se MODIFICÓ y por qué
+| Archivo | Cambio | Por qué |
+|---|---|---|
+| `build.gradle` | `jacocoTestCoverageVerification`: ≥ 70 % de líneas en `domain` + `application`, enganchado a `check` | R13. Un umbral que no rompe el build es solo una sugerencia |
+| `application.properties` | `springdoc.api-docs.enabled=true` y `springdoc.swagger-ui.enabled=true` explícitos | En el VPS, cada arranque dejaba 2 WARN avisando que Swagger es público. Lo es a propósito; ahora la decisión está escrita y el log queda limpio (0 WARN al arrancar) |
+| `README.md` | Sección "Qué hace" (enlace en vivo, endpoints, documentación), comando de cobertura; se quitó el merge directo a `main` | El README es lo primero que lee el profesor. El merge sin revisión contradecía §19 |
+
+### Revisión realizada
+| Qué | Resultado |
+|---|---|
+| **Matriz §15.2** | Los 38 IDs (TC-01 a TC-61) tienen al menos un test `tcNN_…` |
+| **Mutaciones** | Suite completa (`mutation-test.ps1` sin `-Step`): **31/31 detectadas** |
+| **Cobertura** | `domain` + `application`: **98,1 %** de líneas. Total del proyecto: 96 %. Con `-PcoverageMinimum=0.999` el build falla ("lines covered ratio is 0.981"): la regla funciona |
+| **Logs** | Se registran alias y cantidades, **nunca la URL original** (puede llevar tokens, como los enlaces de Drive). El alias que se registra viene de una ruta limitada a `[A-Za-z0-9]{1,16}`: no se pueden inyectar líneas falsas. Hoy en el VPS: 0 ERROR; los WARN eran los 2 de Swagger por arranque y un 405 de la prueba de TC-36 |
+| **Configuración de producción** | `shortener.env`: `SPRING_JPA_SHOW_SQL=false`, `HQLCONSOLE_ENABLED=false`, `SERVER_ADDRESS=127.0.0.1` (solo se llega por el proxy HTTPS), `APP_BASE_URL` del dominio |
+| **DTO** | `ShortenRequest` (1 campo) y `ShortLinkResponse` (7 campos, TC-61). Ninguna entidad JPA sale por la API; no hay listado (TC-36) |
+
+### Resumen de arquitectura
+```text
+            web (static/)        extensión (browser-extension/)
+                  \                    /
+                   HTTP: /api/v1/links, /{alias}, /api/v1/links/{alias}/qr
+                              │
+   web/        LinkApiController · RedirectController · LinkQrController · GlobalExceptionHandler (ProblemDetail)
+                              │  solo DTO (ShortenRequest / ShortLinkResponse)
+   application/  ShortenLinkService · ResolveLinkService · LinkQrService · ExpiredLinksCleanupService · LinkUrls
+                              │  depende solo de interfaces (puertos)
+   domain/      ShortLink (regla de vencimiento I1) · puertos: ShortLinkRepository, AliasGenerator,
+                UrlValidator, ExpirationPolicy, QrCodeGenerator · excepciones de negocio
+                              ▲  implementan los puertos
+   infrastructure/  JpaShortLinkRepository (HSQLDB) · RandomAliasGenerator · RegexUrlValidator ·
+                    FixedTtlExpirationPolicy · ZxingQrCodeGenerator · ExpiredLinksCleanupJob (cron)
+   config/      AppProperties (validadas) · ClockConfig (reloj inyectable) · CorsConfig
+```
+- **Hexagonal (puertos y adaptadores):** el dominio no depende de Spring ni de ZXing. Cambiar la base, el generador de alias o la librería de QR es escribir otra clase que implemente el puerto.
+- **Concesión consciente:** `ShortLink` lleva anotaciones JPA (`jakarta.persistence`). Son solo metadatos estándar y evitan duplicar la entidad con un mapper. Si el dominio tuviera que quedar totalmente puro, se separaría en `ShortLink` (dominio) + `ShortLinkEntity` (infraestructura).
+- **Estrategia (Strategy):** cada puerto es una estrategia intercambiable por configuración, por ejemplo otro `ExpirationPolicy` para TTL variable.
+- **El vencimiento se evalúa al leer** (ADR-0001): el cron solo libera espacio, no decide si un enlace vale.
+- **Reloj inyectado:** todos los tiempos salen de un `Clock`, por eso los tests prueban bordes al milisegundo sin esperar.
+- **Una transacción por intento** al crear: dos pedidos simultáneos con el mismo alias no se pisan (TC-31).
+
+### Cómo probarlo
+```powershell
+gradlew.bat build                                                        # 136 tests + umbral de cobertura
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1       # 31 mutaciones (~7 min)
+gradlew.bat jacocoTestCoverageVerification "-PcoverageMinimum=0.999"     # debe fallar: demuestra la regla
+```
+En PowerShell el `-P…=0.999` va entre comillas: si no, PowerShell corta el argumento en el punto y Gradle responde "Selection failed".
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | `gradlew build`: **136 tests, 0 fallos**, umbral de cobertura cumplido |
+| **M** | Suite completa: **31/31 detectadas** |
+| **V** | Logs y configuración del VPS revisados (tabla de arriba). Criterio 11 en producción: ver el commit de evidencia de este paso |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada, `CHECKLIST-ETAPA1.md`, `DEMO.md` y el README |
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Qué cobertura tienen?** → 98 % de líneas en dominio y aplicación; el build falla por debajo del 70 %. La cobertura sola no alcanza: por eso están las mutaciones.
+- **¿Qué es una prueba de mutación?** → Romper a propósito una regla (por ejemplo, 302 → 301) y comprobar que algún test falla. Si ninguno falla, ese test no protegía nada aunque sume cobertura.
+- **¿Cómo se relaciona cada requisito con los tests?** → `CHECKLIST-ETAPA1.md`: criterio → tests `tcNN_…` → verificación real.
+- **¿Qué loguean y qué no?** → Alias, vencimientos y cantidades. Nunca la URL original, que puede llevar datos privados.
+- **¿Por qué Swagger es público en producción?** → Documenta la API y no expone datos; la web lo enlaza. Quedó explícito en la configuración.
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Funcionó, continúa con el Paso 9" | Auditoría de los 38 TC, umbral de JaCoCo en `check`, revisión de logs y configuración del VPS, checklist §15.3, guion de demo, README final, suite completa de mutaciones | El primer intento de probar el umbral falló por el corte de argumentos de PowerShell, no por la regla. Los WARN de Swagger se silenciaron declarando la decisión, no ocultando el log. En el guion se agregó `--app.base-url` a la instancia de 40 s, que si no generaba enlaces al puerto equivocado |
