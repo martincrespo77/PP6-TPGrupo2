@@ -731,3 +731,87 @@ curl.exe -I http://localhost:8080/zzzzz        # 404
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Ok sigamos" | Paso 4 con TDD: `ResolveLinkService`, `RedirectController` (302/404, `no-store`), página de no disponible, reloj de test que se adelanta a mano, 3 mutaciones | Verde al primer intento; las 3 mutaciones detectadas confirman que los tests no pasan por casualidad |
+
+---
+
+## Paso 5 – Borrado programado de enlaces vencidos (09/10/2026)
+
+**Estado:** completo en local y en el VPS, pendiente **V** (log de la primera corrida en el VPS, 10/10 a las 03:00) y **A** (aceptación de Sofía).
+
+### Objetivo
+Una tarea programada que borra físicamente los enlaces vencidos una vez por día (D5, ADR-0002). Es el Paso 5 de `contexto.md` §16 y cubre el requerimiento de la consigna de que el alias vencido "queda disponible".
+
+> **Nota de orden:** al cerrar el Paso 4 se anunció el QR como Paso 5. El plan de §16 pone primero la limpieza (Paso 5) y después el QR (Paso 6); se siguió el plan.
+
+### Estado ANTERIOR
+`ShortLinkRepository.deleteExpiredBefore(now)` existía desde el Paso 1, pero nadie la llamaba: los vencidos quedaban en la base para siempre (sin efecto visible, porque el redirect ya los ignora). `infrastructure/scheduling` solo tenía su `package-info.java`.
+
+### Qué es NUEVO
+| Archivo | Acción | Para qué sirve |
+|---|---|---|
+| `application/ExpiredLinksCleanupService.java` | nuevo | `purgeExpired()`: borra los vencidos según el `Clock`, en una transacción, y loguea cuántos borró (D36) |
+| `infrastructure/scheduling/ExpiredLinksCleanupJob.java` | nuevo | `@Scheduled(cron = "${app.cleanup.cron}")`: llama al servicio |
+| `infrastructure/scheduling/SchedulingConfig.java` | nuevo | `@EnableScheduling` |
+| `ExpiredLinksCleanupServiceTest.java` | nuevo | 6 tests (ver tabla abajo) |
+
+### Qué se MODIFICÓ y por qué
+Solo `scripts/mutation-test.ps1` (4 mutaciones del Paso 5). La consulta de borrado y su test de bordes son del Paso 1 y no cambiaron.
+
+### Cómo funciona (explicado simple)
+```text
+Todos los días a las 03:00 (hora del servidor; app.cleanup.cron = "0 0 3 * * *")
+  └─ ExpiredLinksCleanupJob.run()
+       └─ ExpiredLinksCleanupService.purgeExpired()          ← transacción
+            └─ delete from ShortLink s where s.expiresAt <= :now   (now = Clock)
+            └─ log: "Limpieza de vencidos: N enlace(s) borrado(s)"
+```
+**Por qué la corrección no depende del cron** (lo pide `contexto.md` §18.4): que un enlace vencido no redirija lo decide `ResolveLinkService` en **cada pedido**, comparando `expiresAt` con el reloj (I1, Paso 4). Si el cron no corre nunca, la aplicación se comporta igual para el usuario; solo crece la tabla. Que el alias se pueda reutilizar tampoco depende del cron: la creación borra en el momento un vencido que choque (D6, Paso 3). El cron es **mantenimiento**, no una regla de negocio.
+
+### Decisiones de diseño
+- **Servicio en `application` y disparador en `infrastructure`:** la regla ("borrar lo vencido según el reloj") es un caso de uso que se puede llamar desde un test, un endpoint de administración o la línea de comandos. El `@Scheduled` es solo un detalle de cuándo se llama.
+- **Un solo `DELETE` JPQL** en vez de buscar y borrar uno por uno: una sentencia, sin cargar entidades en memoria. Usa el índice `idx_short_link_expires_at` del Paso 1.
+- **Cron configurable** (`app.cleanup.cron`): se puede pasar a cada hora sin recompilar. Un cron inválido impide arrancar (Spring lo valida al registrar la tarea).
+- **Hora del servidor:** el VPS está en `America/Argentina/Buenos_Aires`, así que corre a las 03:00 de Argentina (06:00 UTC). El horario no afecta la corrección (ver arriba).
+- **Sin manejo de errores propio:** si una corrida falla, Spring lo loguea y la tarea sigue programada para el día siguiente. Lo que quedó sin borrar se borra en la próxima corrida.
+
+### Cómo probarlo
+```powershell
+gradlew.bat test                                                              # 98 tests
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 5    # 4 mutaciones
+```
+| Test | Qué verifica |
+|---|---|
+| `tc40_...` | TC-40 / D5: borra los vencidos (hace 5 h y hace 1 s) y devuelve 2 |
+| `tc41_...` | TC-41 / I6: los vigentes (vencen en 1 s y en 59 min) quedan intactos |
+| `tc42_...` | TC-42 / D3 + I6: el que vence **justo ahora** se borra; el que vence 1 ms después no |
+| `usesTheClockToDecideWhatIsExpired` | Con el reloj adelantado 30 minutos, el mismo enlace pasa de "no se borra" a "se borra" |
+| `jobRunsTheCleanup` | La tarea programada efectivamente llama a la limpieza |
+| `jobIsScheduledWithTheConfiguredCron` | Spring registró la tarea con el cron `0 0 3 * * *` de `application.properties` |
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: **98 tests, 0 fallos** |
+| **M** | `scripts\mutation-test.ps1 -Step 5` → **4/4 detectadas**: I6 `<=` → `>=` por TC-40, TC-41, TC-42 y 2 más; I6 "sin condición" (borrar todo) por TC-41, TC-42 y el test del reloj; quitar `@Scheduled` por `jobIsScheduledWithTheConfiguredCron`; restar una hora al reloj por TC-40, TC-42 y 2 más. La mutación I6 `<=` → `<` del Paso 1 sigue cubierta |
+| **E2E** | No aplica (tarea interna, sin interfaz) |
+| **V** | Ver despliegue. ⛔ **Pendiente:** el log `Limpieza de vencidos: N enlace(s) borrado(s)` de la primera corrida en el VPS (10/10, 03:00 ART); se revisa con `journalctl -u pp6-shortener --since today \| grep Limpieza` |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada |
+
+### Preguntas probables del profesor (con respuesta)
+- **Si el cron corre una vez por día, ¿un enlace vencido redirige hasta que se borre?** → No. El redirect evalúa el vencimiento en cada pedido. El cron solo libera espacio.
+- **¿Para qué borrar si igual no redirige?** → El cliente no quiere historial ni estadísticas (C7, C8) y la privacidad es mejor si las URLs viejas no quedan guardadas (C14). Además la tabla no crece sin límite.
+- **¿Qué pasa con un alias vencido que todavía no se borró y vuelve a salir sorteado?** → La creación lo borra y lo reasigna en la misma transacción (D6, TC-22 del Paso 3). No hay que esperar al cron.
+- **¿Qué pasa si el servidor está apagado a las 3:00?** → Esa corrida se pierde y la próxima borra todo lo acumulado. No hay riesgo para el usuario.
+- **¿Por qué `<=` y no `<`?** → En el instante `expiresAt` el enlace ya venció (intervalo semiabierto). TC-42 y las mutaciones lo prueban.
+- **¿Por qué no un `@Scheduled` directamente en el repositorio?** → Mezclaría "cuándo" con "qué". Separados, la limpieza se puede probar y llamar sin esperar al reloj.
+
+### Preparado para cambios
+- **Historial o estadísticas** (revertir ADR-0002): se desactiva o cambia la tarea, por ejemplo moviendo a una tabla de archivo en vez de borrar.
+- **Limpieza más frecuente:** cambiar `app.cleanup.cron` en el `.env` del VPS, sin recompilar.
+- **Varias instancias de la aplicación:** cada una correría el cron. El `DELETE` es idempotente, así que no rompe nada; si molestara, se agrega un bloqueo distribuido (por ejemplo ShedLock).
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Ok sigamos con el paso 5" | Se corrigió el orden (§16: limpieza antes que QR). Servicio de limpieza + tarea con `@Scheduled` + `@EnableScheduling`, 6 tests, 4 mutaciones | Se verificó la zona horaria del VPS para documentar cuándo corre; queda pendiente el log real de la primera corrida |

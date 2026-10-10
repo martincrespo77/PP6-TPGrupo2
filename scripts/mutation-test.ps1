@@ -69,7 +69,19 @@ $mutations = @(
      Tests = '*RedirectControllerTest*' },
   @{ Step = 4; Id = 'Q7'; File = "$src/application/ResolveLinkService.java"
      From = 'String normalized = alias.toLowerCase(Locale.ROOT);'; To = 'String normalized = alias;'
-     Tests = '*ResolveLinkServiceTest*' }
+     Tests = '*ResolveLinkServiceTest*' },
+  @{ Step = 5; Id = 'I6-gte'; File = "$src/infrastructure/persistence/JpaShortLinkRepository.java"
+     From = 's.expiresAt <= :now'; To = 's.expiresAt >= :now'
+     Tests = '*ExpiredLinksCleanupServiceTest*' },
+  @{ Step = 5; Id = 'I6-todo'; File = "$src/infrastructure/persistence/JpaShortLinkRepository.java"
+     From = 's.expiresAt <= :now'; To = 's.expiresAt is not null or s.expiresAt = :now'
+     Tests = '*ExpiredLinksCleanupServiceTest*' },
+  @{ Step = 5; Id = 'D5-cron'; File = "$src/infrastructure/scheduling/ExpiredLinksCleanupJob.java"
+     From = '@Scheduled(cron = "${app.cleanup.cron}")'; To = ''
+     Tests = '*ExpiredLinksCleanupServiceTest*' },
+  @{ Step = 5; Id = 'D5-clock'; File = "$src/application/ExpiredLinksCleanupService.java"
+     From = 'repository.deleteExpiredBefore(clock.instant())'; To = 'repository.deleteExpiredBefore(clock.instant().minusSeconds(3600))'
+     Tests = '*ExpiredLinksCleanupServiceTest*' }
 )
 
 $survivors = 0
