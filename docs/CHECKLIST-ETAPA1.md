@@ -17,7 +17,7 @@ Estados: ✅ demostrado · ⛔ falta evidencia (motivo).
 | 8 | El cron borra los vencidos y no toca los vigentes | `tc40_…`, `tc41_…`, `tc42_…` (borde exacto), cron `0 0 3 * * *` registrado | Primera ejecución en el VPS: 10/10 03:00 | ✅ tests · ⛔ falta ver el log del 10/10 |
 | 9 | Colisión → otro alias; superado el tope → 503 | `tc21_…`, `tc23_…` (servicio y API), `tc31_concurrentCreations…` (dos transacciones reales) | Web: mensaje del 503 (captura Paso 7) | ✅ |
 | 10 | La API nunca devuelve entidades JPA ni lista enlaces | `tc61_…ExactlyTheContractFields`, `tc36_thereIsNoEndpointThatListsLinks` | `GET /api/v1/links` en el VPS → 405 | ✅ |
-| 11 | Tras reiniciar, los enlaces vigentes siguen funcionando | `tc35_linksSurviveAnApplicationRestart` | Cada deploy reinicia el servicio y los enlaces previos siguen redirigiendo (`juf9p`, logs del 09/10) | ✅ |
+| 11 | Tras reiniciar, los enlaces vigentes siguen funcionando | `tc35_linksSurviveAnApplicationRestart` | En el VPS: `m6nxp` creado a las 22:05, deploy `5d22750` (reinicio) a las 22:15, después `GET /m6nxp` → 302 a la URL original | ✅ |
 | 12 | Extensión en Chrome y Firefox: acorta la pestaña activa con un clic; enlace, QR, Copiar, vencimiento; botón deshabilitado fuera de http/https | `BrowserExtensionFilesTest` (4), `CorsConfigTest` (8) | CORS con `curl` en el VPS (Paso 8). Prueba manual de Agustín: "Funcionó" (09/10) | ✅ funcional · ⛔ faltan capturas en los dos navegadores |
 | 13 | La web muestra todos los estados de §11.1, incluido "vencido" | `WebClientStaticFilesTest` (5) | 7 capturas en `docs/evidencias/paso-7/` | ✅ |
 

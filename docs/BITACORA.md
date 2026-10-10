@@ -1201,7 +1201,7 @@ En PowerShell el `-P…=0.999` va entre comillas: si no, PowerShell corta el arg
 |---|---|
 | **T** | `gradlew build`: **136 tests, 0 fallos**, umbral de cobertura cumplido |
 | **M** | Suite completa: **31/31 detectadas** |
-| **V** | Logs y configuración del VPS revisados (tabla de arriba). Criterio 11 en producción: ver el commit de evidencia de este paso |
+| **V** | Logs y configuración del VPS revisados (tabla de arriba). Deploy `5d22750`: 0 WARN al arrancar. Criterio 11 en producción: `m6nxp` creado a las 22:05, reinicio por el deploy a las 22:15 y después `GET /m6nxp` → 302 a `https://www.undef.edu.ar/?prueba=reinicio` |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada, `CHECKLIST-ETAPA1.md`, `DEMO.md` y el README |
 
