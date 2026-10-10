@@ -1025,3 +1025,106 @@ java -jar build\libs\shortener.jar --app.link.ttl=40s --spring.datasource.url=jd
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Continuemos con el paso 7" | `index.html` + `app.js` + `styles.css` con los 6 estados de §11.1; test de archivos estáticos; E2E en el navegador con TTL de 40 s y estados simulados por DevTools | En la E2E se corrigieron el "60 minutos" fijo, la hora con doble punto, "Descargar QR" visible al vencer y el copiado por HTTP. El test de "sin localhost" fallaba por un comentario y se cambió por "sin URLs absolutas", que es lo que importa |
+
+---
+
+## Paso 8 – Extensión Chrome/Firefox + CORS + `.zip` (09/10/2026)
+
+**Estado:** backend completo en local y en el VPS. Pendiente **E2E** de la extensión cargada en Chrome y Firefox (con capturas) y **A** (aceptación de Sofía).
+
+### Objetivo
+Acortar la página que se está viendo con un clic, sin copiar y pegar la dirección (C10, `contexto.md` §11.2, Paso 8 de §16). La extensión usa la misma API pública que la web.
+
+### Estado ANTERIOR
+No existía `browser-extension/`. La API no tenía CORS: cualquier llamada desde otro origen, como el de una extensión, la bloqueaba el navegador.
+
+### Qué es NUEVO
+| Archivo | Acción | Para qué sirve |
+|---|---|---|
+| `browser-extension/manifest.json` | nuevo | Manifest V3. Permiso único `activeTab`; `host_permissions` hacia el VPS y `localhost:8080`; id de Firefox en `browser_specific_settings.gecko` (D42) |
+| `browser-extension/config.js` | nuevo | Constante `apiBaseUrl` (D44). Apunta al VPS |
+| `browser-extension/popup.html` / `popup.css` / `popup.js` | nuevos | Popup de 340 px: URL de la pestaña, ACORTAR, estado y la misma tarjeta que la web |
+| `config/CorsConfig.java` | nuevo | CORS en `/api/**` solo para `chrome-extension://*` y `moz-extension://*`, métodos GET/POST (D45) |
+| `scripts/package-extension.ps1` | nuevo | Genera `build/extension/acortador-pp6-1.0.0.zip`; con `-ApiUrl` arma otro zip sin tocar el código |
+| `CorsConfigTest` (8) y `BrowserExtensionFilesTest` (4) | nuevos | 12 tests |
+
+### Qué se MODIFICÓ y por qué
+| Archivo | Cambio | Por qué |
+|---|---|---|
+| `scripts/mutation-test.ps1` | 4 mutaciones del Paso 8 | Ver Evidencias |
+| `README.md` | Sección "Extensión para Chrome y Firefox" y el script nuevo | Q4: el README explica cómo cargarla en los dos navegadores |
+
+**Desvío de `contexto.md`:** D44 decía `http://localhost:8080` en `config.js`. BL-006 indicaba cambiarlo "al desplegar en el VPS", y el VPS ya está funcionando, así que la constante apunta a producción. Para trabajar en local: `package-extension.ps1 -ApiUrl http://localhost:8080`.
+
+### Cómo funciona (explicado simple)
+```text
+Usuario abre el popup (clic en el ícono)
+  └─ popup.js: tabs.query({active, currentWindow})  → URL de la pestaña (activeTab lo permite tras el clic)
+       ├─ no es http/https (chrome://, about:, pestaña nueva)
+       │     → ACORTAR deshabilitado + "Esta página no se puede acortar (solo http/https)"
+       └─ es http/https → POST {apiBaseUrl}/api/v1/links  (origen: chrome-extension://<id>)
+             └─ navegador: preflight OPTIONS → CorsConfig responde "este origen puede" → POST real
+                   201 → enlace, Copiar, QR, Descargar QR, "Vence a las HH:MM." (+ estado vencido)
+                   400 / 503 / sin red → los mismos mensajes que la web
+```
+**¿Qué es CORS?** Por seguridad, el navegador no deja que una página de un origen (por ejemplo `chrome-extension://abc…`) lea respuestas de otro (`https://paradigmas6…`), salvo que el servidor diga explícitamente "a este origen sí". Eso es CORS: unos headers `Access-Control-*` en la respuesta. Antes de un `POST` con JSON, el navegador pregunta primero con un `OPTIONS` (el "preflight").
+
+### Decisiones de diseño
+- **Un solo código para los dos navegadores** (D42): `const ext = globalThis.browser ?? globalThis.chrome`. En Manifest V3 las dos API devuelven promesas.
+- **Permiso mínimo `activeTab`** en lugar de `tabs`: la extensión solo ve la URL de la pestaña cuando el usuario hace clic en el ícono, no su historial de navegación. Al instalarla, el navegador no muestra el aviso de "leer tu historial".
+- **CORS con lista cerrada:** solo orígenes de extensión, solo GET/POST, solo `/api/**`, sin credenciales. `*` habría abierto la API a cualquier sitio web. La redirección `/{alias}` no necesita CORS porque el navegador la sigue como una navegación normal.
+- **`Location` y `Retry-After` expuestos:** por defecto JavaScript no puede leer esos headers en una respuesta de otro origen.
+- **Acorta al abrir** (§11.2): un clic en el ícono alcanza. ACORTAR queda para reintentar después de un error o de que el enlace venza.
+- **Descargar QR con `target="_blank"`:** el atributo `download` no funciona entre orígenes, así que el servidor manda `Content-Disposition: attachment` (D22, Paso 6) y el navegador descarga `{alias}.png`.
+- **Copiar sin alternativa:** el popup es una página de la extensión (contexto seguro) y tiene el foco cuando el usuario hace clic, así que `navigator.clipboard` funciona. Si falla, aparece el mismo mensaje que en la web.
+- **Zip armado a mano:** `Compress-Archive` de PowerShell 5 guarda rutas con `\` y Firefox rechaza esos zip. El script escribe las entradas con `/` y `manifest.json` en la raíz.
+- **El zip no se versiona:** queda en `build/` (ignorado por git), se regenera con el script y se adjunta a la entrega.
+
+### Cómo probarlo
+```powershell
+gradlew.bat test                                                              # 136 tests
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 8    # 4 mutaciones
+powershell -ExecutionPolicy Bypass -File scripts\package-extension.ps1        # zip para el VPS
+# Cargarla: ver README, sección "Extensión para Chrome y Firefox"
+```
+| Test | Qué verifica |
+|---|---|
+| `preflightFromTheExtensionIsAllowed` (2) | Chrome y Firefox: 200, `Allow-Origin` = el origen, POST y `content-type` permitidos, sin credenciales |
+| `createdLinkResponseExposesLocationToTheExtension` | El `POST` real devuelve 201 con `Allow-Origin` y expone `Location` y `Retry-After` |
+| `otherOriginsAreRejected` (3) | Un sitio ajeno, `localhost:3000` y un dominio que empieza con "chrome-extension" → 403 sin `Allow-Origin` |
+| `deleteIsNotAllowedEvenFromTheExtension` | `DELETE` desde la extensión → 403 |
+| `corsOnlyAppliesToTheApiNotToTheRedirect` | `/{alias}` no lleva headers CORS |
+| `manifestIsV3WithASinglePermissionAndAFirefoxId` | Manifest V3, permisos exactamente `["activeTab"]`, popup, id de Firefox, versión x.y.z |
+| `configuredApiIsCoveredByHostPermissions` | La URL de `config.js` está en `host_permissions` (si no, la extensión no podría llamarla) |
+| `popupLoadsTheConfigBeforeTheScriptAndHasNoInlineCode` | `config.js` antes de `popup.js`; sin `<script>` en línea ni `onclick` (Manifest V3 los prohíbe) |
+| `scriptUsesTheConfiguredApiAndTheServerCountdown` | Usa `PP6_CONFIG.apiBaseUrl`, `secondsRemaining` y el aviso de §11.2; sin URLs fijas |
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | TDD: `CorsConfigTest` se corrió antes de `CorsConfig` → 7 de 8 en rojo (el de la redirección pasaba porque no había CORS en ningún lado). Después: verde. Suite completa: **136 tests, 0 fallos** |
+| **M** | `mutation-test.ps1 -Step 8` → **4/4 detectadas**: D45-origen (`*` en lugar de la lista) por los 3 casos de `otherOriginsAreRejected`; D45-ruta (`/**`) por `corsOnlyAppliesToTheApi…`; D45-métodos (`*`) por `deleteIsNotAllowed…`; D45-expuestos (sin `exposedHeaders`) por `createdLinkResponseExposes…` |
+| **V** | **En el VPS** (`DEPLOYED` = `067337f`), con `curl`: preflight desde `chrome-extension://…` → `200`, `allow-origin` igual al origen, `allow-methods: GET,POST`, `expose-headers: Location, Retry-After`; preflight desde `https://sitio-malicioso.example` → `403` sin `allow-origin`; `POST` desde `moz-extension://…` → `201`, `allow-origin` igual al origen, enlace `ntsmm` con `secondsRemaining: 3600` |
+| **E2E** | ⛔ **Pendiente (manual):** el navegador automatizado no puede cargar extensiones. Hay que cargarla en Chrome y en Firefox y capturar: popup con resultado, Copiar funcionando, Descargar QR y el botón deshabilitado en `chrome://extensions` o `about:debugging` |
+| **A** | ⛔ Pendiente: aceptación de Sofía |
+| **D** | Esta entrada y el README |
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Qué es CORS y por qué lo necesitan?** → Una regla del navegador: una página de un origen no puede leer respuestas de otro salvo que el servidor lo autorice con headers. La extensión corre en `chrome-extension://…` y la API en otro dominio.
+- **¿Por qué no `allowedOrigins("*")`?** → Cualquier sitio web podría usar la API desde el navegador de sus visitantes. La mutación D45-origen demuestra que el test lo detecta.
+- **¿Por qué la web no necesita CORS?** → Se sirve desde el mismo servidor que la API: mismo origen.
+- **¿Qué permisos pide la extensión y por qué?** → Solo `activeTab`: lee la URL de la pestaña cuando el usuario hace clic, nada más. Más los `host_permissions` hacia el backend.
+- **¿Cómo es el mismo código para Chrome y Firefox?** → Los dos implementan WebExtensions con Manifest V3. Se usa `browser ?? chrome` y `browser_specific_settings.gecko` para el id de Firefox, que Chrome ignora.
+- **¿Qué pasa en una pestaña `chrome://`?** → El navegador no deja acortar esas páginas: ACORTAR queda deshabilitado con el aviso de §11.2.
+- **¿Cómo cambian el servidor de la extensión?** → Es una constante en `config.js` (C10: no configurable por el usuario). El script de empaquetado genera un zip para otro servidor sin tocar el código, y un test verifica que esa URL esté en `host_permissions`.
+
+### Preparado para cambios
+- **Servidor configurable (BL-006):** página de opciones + `storage`, si el Cliente lo pide.
+- **Publicar en las tiendas:** firmar con AMO (Firefox) o subir a Chrome Web Store; el `.zip` ya tiene el formato que piden.
+- **Íconos propios:** agregar `icons` al manifest (hoy el navegador muestra el ícono genérico).
+- **Menú contextual "Acortar este enlace":** permiso `contextMenus` + un service worker, reutilizando la misma llamada a la API.
+
+### Prompts utilizados (registro de IA)
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "Continua con el paso 8" | `CorsConfig` con TDD y 4 mutaciones; extensión Manifest V3 (popup que acorta la pestaña activa); script de empaquetado; README de instalación; deploy y verificación de CORS con `curl` en el VPS | `config.js` apunta al VPS en vez de `localhost` (BL-006 ya se cumplió); zip con rutas `/` por la incompatibilidad de `Compress-Archive` con Firefox. La carga en los navegadores queda manual |
