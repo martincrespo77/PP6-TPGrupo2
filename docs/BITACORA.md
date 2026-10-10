@@ -994,7 +994,7 @@ java -jar build\libs\shortener.jar --app.link.ttl=40s --spring.datasource.url=jd
 | **T** | **124 tests, 0 fallos** (5 nuevos) |
 | **M** | No aplica (ver Decisiones de diseño) |
 | **E2E** | Los 6 estados de §11.1 en el navegador, en `docs/evidencias/paso-7/`: inicial, cargando, error 400 con el mensaje del servidor, 503, resultado con QR y vencido. En "vencido" se comprobó en el DOM que "Descargar QR" queda con `display: none` y que el servidor responde 404 para ese alias |
-| **V** | En el VPS, después del deploy (ver commit de evidencia). ⛔ **Pendiente:** probar **Copiar** en Chrome o Firefox normales. En el navegador automatizado las dos formas de copiar fallan porque la ventana no tiene el foco (`document.hasFocus() = false`), y el navegador no deja escribir en el portapapeles sin foco. En ese caso la web muestra "No se pudo copiar. Seleccioná el enlace y copialo a mano." |
+| **V** | **En el VPS** (`DEPLOYED` = `d51b18c`): desde `https://paradigmas6.agustingimenez.ar/` se creó `4zmj8`, con QR, Descargar QR y "Vence a las 22:34." (60 minutos reales). Captura: `docs/evidencias/paso-7/7-vps.png`. ⛔ **Pendiente:** probar **Copiar** en Chrome o Firefox normales. En el navegador automatizado las dos formas de copiar fallan porque la ventana no tiene el foco (`document.hasFocus() = false`), y el navegador no deja escribir en el portapapeles sin foco. En ese caso la web muestra "No se pudo copiar. Seleccioná el enlace y copialo a mano." |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada |
 
@@ -1006,6 +1006,7 @@ java -jar build\libs\shortener.jar --app.link.ttl=40s --spring.datasource.url=jd
 | Sin alias (503) | ![503](evidencias/paso-7/4-sin-alias-503.png) |
 | Resultado | ![resultado](evidencias/paso-7/5-resultado.png) |
 | Vencido | ![vencido](evidencias/paso-7/6-vencido.png) |
+| En el VPS | ![vps](evidencias/paso-7/7-vps.png) |
 
 ### Preguntas probables del profesor (con respuesta)
 - **¿Dónde se valida la URL, en la web o en el servidor?** → Solo en el servidor (D8). La web muestra el mensaje que recibe. Así la extensión y la web tienen exactamente la misma regla.
