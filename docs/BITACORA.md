@@ -794,7 +794,7 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 5    # 
 | **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: **98 tests, 0 fallos** |
 | **M** | `scripts\mutation-test.ps1 -Step 5` → **4/4 detectadas**: I6 `<=` → `>=` por TC-40, TC-41, TC-42 y 2 más; I6 "sin condición" (borrar todo) por TC-41, TC-42 y el test del reloj; quitar `@Scheduled` por `jobIsScheduledWithTheConfiguredCron`; restar una hora al reloj por TC-40, TC-42 y 2 más. La mutación I6 `<=` → `<` del Paso 1 sigue cubierta |
 | **E2E** | No aplica (tarea interna, sin interfaz) |
-| **V** | Ver despliegue. ⛔ **Pendiente:** el log `Limpieza de vencidos: N enlace(s) borrado(s)` de la primera corrida en el VPS (10/10, 03:00 ART); se revisa con `journalctl -u pp6-shortener --since today \| grep Limpieza` |
+| **V** | **En el VPS:** `/opt/pp6-shortener/DEPLOYED` = `eec0232 20261009-210248`, servicio `active`. Prueba real de que la corrección no depende del cron: `kdz4x`, creado a las 09:24 en el Paso 4, a las 21:03 responde `404` aunque la limpieza todavía no corrió y la fila sigue en la base. ⛔ **Pendiente:** el log `Limpieza de vencidos: N enlace(s) borrado(s)` de la primera corrida en el VPS (10/10, 03:00 ART); se revisa con `journalctl -u pp6-shortener --since today \| grep Limpieza` |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada |
 
