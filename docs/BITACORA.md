@@ -894,9 +894,9 @@ powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1 -Step 6    # 
 | Código | Evidencia |
 |---|---|
 | **T** | TDD: los tests se escribieron primero y fallaron por compilación (rojo). Después de implementar: **119 tests, 0 fallos** |
-| **M** | `scripts\mutation-test.ps1 -Step 6` → **4/4 detectadas**: I4 (codificar la URL original) por TC-50 y 2 más; D22 (`attachment` → `inline`) por TC-51; E7 (sin validar tamaño) por los 4 casos de TC-53; I1 (ignorar el vencimiento en `findLive`) por TC-52, lo que prueba que el QR **hereda** la regla del redirect. Pasos 4 re-ejecutado tras el cambio en `ResolveLinkService`: 3/3 |
+| **M** | `scripts\mutation-test.ps1 -Step 6` → **4/4 detectadas**: I4 (codificar la URL original) por TC-50 y 2 más; D22 (`attachment` → `inline`) por TC-51; E7 (sin validar tamaño) por los 4 casos de TC-53; I1 (ignorar el vencimiento en `findLive`) por TC-52, lo que prueba que el QR **hereda** la regla del redirect. Mutaciones del Paso 4 re-ejecutadas tras el cambio en `ResolveLinkService`: 3/3 |
 | **E2E** | Parcial: la imagen se ve en el navegador abriendo la `qrUrl`. La integración con la web llega en el Paso 7 |
-| **V** | Ver despliegue. ⛔ **Pendiente:** escanear el QR con un celular y confirmar que abre la URL original (criterio 7 de §15.3) |
+| **V** | **En el VPS** (`/opt/pp6-shortener/DEPLOYED` = `c6b02bd 20261009-211436`): enlace `uuyf6` creado por API; `GET .../uuyf6/qr?size=512&download=true` → `200`, `image/png`, `attachment; filename="uuyf6.png"`, `no-store`, PNG de 843 bytes; `.../zzzzz/qr` → `404` ProblemDetail "Este enlace expiró o no existe"; `size=64` → `400` con el rango. ⛔ **Pendiente:** escanear el QR con un celular y confirmar que abre la URL original (criterio 7 de §15.3) |
 | **A** | ⛔ Pendiente: aceptación de Sofía |
 | **D** | Esta entrada |
 
