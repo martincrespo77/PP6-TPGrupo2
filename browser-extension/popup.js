@@ -130,8 +130,9 @@
 			return;
 		}
 		tabUrl = url;
+		// No se acorta al abrir: recién cuando el usuario aprieta ACORTAR.
 		button.addEventListener('click', shorten);
-		await shorten();
+		button.disabled = false;
 	}
 
 	copyButton.addEventListener('click', async function () {
