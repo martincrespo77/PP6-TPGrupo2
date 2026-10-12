@@ -1,0 +1,76 @@
+:root {
+	--accent: #1a73e8;
+	--accent-dark: #1558b0;
+	--text: #222;
+	--muted: #666;
+	--border: #d0d7de;
+	--error: #b3261e;
+	--warning: #8a5300;
+	--success: #1e7d32;
+}
+
+* { box-sizing: border-box; }
+
+/* Las clases con display (p. ej. .button) pisan el atributo hidden si no se fuerza. */
+[hidden] { display: none !important; }
+
+body {
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	color: var(--text);
+	margin: 0;
+	width: 340px;
+	background: #f6f8fa;
+}
+
+main { padding: 1rem; }
+
+h1 { margin: 0 0 .5rem; font-size: 1.1rem; }
+
+.page-url {
+	margin: 0 0 .75rem;
+	font-size: .8rem;
+	color: var(--muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+button, .button {
+	display: inline-block;
+	padding: .5rem 1rem;
+	border: 1px solid var(--accent);
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	font: inherit;
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+button:hover:not(:disabled), .button:hover { background: var(--accent-dark); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+.button.secondary { background: #fff; color: var(--accent); }
+.button.secondary:hover { background: #eef4fd; }
+
+#shorten { width: 100%; }
+
+.status { min-height: 1.2rem; margin: .6rem 0; font-size: .85rem; font-weight: 600; }
+.status.info { color: var(--muted); }
+.status.error { color: var(--error); }
+.status.warning { color: var(--warning); }
+.status.success { color: var(--success); }
+
+.card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: .75rem; }
+
+.row { display: flex; gap: .5rem; align-items: center; justify-content: space-between; }
+
+.short-url { font-weight: 600; color: var(--accent); word-break: break-all; }
+
+.qr { display: block; margin: .75rem auto; border: 1px solid var(--border); border-radius: 6px; }
+
+.muted { color: var(--muted); font-size: .85rem; margin: .5rem 0 0; }
+
+.card.expired .short-url { color: var(--muted); text-decoration: line-through; pointer-events: none; }
+.card.expired .qr { filter: grayscale(1); opacity: .35; }

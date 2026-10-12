@@ -1,0 +1,81 @@
+plugins {
+	id 'java'
+	id 'jacoco'
+	id 'org.springframework.boot' version '4.1.1'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'ar.edu.undef.fie.pp6'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+	maven { url = 'https://jitpack.io' }
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
+	implementation 'com.google.zxing:core:3.5.4'
+	implementation 'com.google.zxing:javase:3.5.4'
+	implementation 'com.github.thejavalistener.hqlconsole:jpql-console-starter:v1.1.0'
+	runtimeOnly 'org.hsqldb:hsqldb'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+jacoco {
+	toolVersion = '0.8.15'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+	finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+	dependsOn test
+	reports {
+		html.required = true
+		xml.required = true
+	}
+}
+
+// R13: >= 70 % de líneas en dominio + aplicación. Se puede subir con -PcoverageMinimum=0.90.
+jacocoTestCoverageVerification {
+	dependsOn test
+	classDirectories.setFrom(files(classDirectories.files.collect {
+		fileTree(it) {
+			include 'ar/edu/undef/fie/pp6/shortener/domain/**'
+			include 'ar/edu/undef/fie/pp6/shortener/application/**'
+		}
+	}))
+	violationRules {
+		rule {
+			limit {
+				counter = 'LINE'
+				value = 'COVEREDRATIO'
+				minimum = new BigDecimal(findProperty('coverageMinimum') ?: '0.70')
+			}
+		}
+	}
+}
+
+tasks.named('check') {
+	dependsOn jacocoTestCoverageVerification
+}
+
+bootJar {
+	archiveFileName = 'shortener.jar'
+}

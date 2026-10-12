@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<title>Acortador de enlaces – PP6</title>
+	<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+	<main>
+		<h1>Acortar esta página</h1>
+		<p id="page-url" class="page-url"></p>
+
+		<button id="shorten" type="button" disabled>ACORTAR</button>
+
+		<p id="status" class="status" role="status" aria-live="polite"></p>
+
+		<section id="result" class="card" hidden>
+			<div class="row">
+				<a id="short-url" class="short-url" target="_blank" rel="noopener"></a>
+				<button id="copy" type="button">Copiar</button>
+			</div>
+			<img id="qr" class="qr" width="160" height="160" alt="">
+			<a id="download" class="button secondary" target="_blank" rel="noopener">Descargar QR</a>
+			<p id="expires" class="muted"></p>
+		</section>
+	</main>
+
+	<script src="config.js"></script>
+	<script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+	"manifest_version": 3,
+	"name": "Acortador de enlaces – PP6",
+	"short_name": "Acortador PP6",
+	"version": "1.0.0",
+	"description": "Acorta la página que estás viendo: enlace corto de 60 minutos con su código QR.",
+	"action": {
+		"default_title": "Acortar esta página",
+		"default_popup": "popup.html"
+	},
+	"permissions": ["activeTab"],
+	"host_permissions": [
+		"https://paradigmas6.agustingimenez.ar/*",
+		"http://localhost:8080/*"
+	],
+	"browser_specific_settings": {
+		"gecko": {
+			"id": "acortador-pp6@undef.edu.ar",
+			"strict_min_version": "128.0",
+			"data_collection_permissions": {
+				"required": ["none"]
+			}
+		}
+	}
+}
