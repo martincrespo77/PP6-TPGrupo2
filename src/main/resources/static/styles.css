@@ -159,6 +159,13 @@ button.dark:hover:not(:disabled) { background: #2b3340; }
 .result.expired .short-url { color: var(--muted); text-decoration: line-through; cursor: default; }
 .result.expired .qr { filter: grayscale(1) opacity(.3); }
 
+.extension { margin-top: 1.5rem; }
+.extension h2 { margin: 0 0 .4rem; font-size: 1.15rem; }
+.extension p { margin: 0 0 1rem; }
+.extension details { margin-top: 1rem; font-size: .9rem; }
+.extension summary { cursor: pointer; font-weight: 600; }
+.extension details p { margin: .6rem 0 0; }
+
 footer { margin-top: 2rem; font-size: .85rem; text-align: center; }
 footer a { color: inherit; }
 
