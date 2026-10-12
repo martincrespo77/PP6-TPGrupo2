@@ -4,9 +4,11 @@
 **Cátedra:** Paradigmas de Programación VI – 5to Año – Ingeniería en Informática (FIE)
 **Equipo:** Martín Crespo (`dev/martin`) · Sofía Ramirez (`dev/sofia`) · Agustín Gimenez (`dev/agustin`)
 **Repositorio:** https://github.com/martincrespo77/PP6-TPGrupo2
-**Versión del documento:** v0.1 – consolidación inicial (07/10/2026)
+**Versión del documento:** v0.2 – estructura alineada al proyecto de referencia del profesor (11/10/2026). Reemplaza a la v0.1 – consolidación inicial (07/10/2026)
 
 > **Qué es este documento.** Es la **base única de contexto** del proyecto. Consolida la consigna (`TP_PP6_v1.0.md`), la minuta con las respuestas del cliente y las tres propuestas individuales (`ANALISIS_Y_ESPECIFICACION_ETAPA_1.md` de Martín, `propuesta-etapa1_agus.md` de Agustín y `propuesta-etapa1_sofia.md` de Sofía). Lo leen los integrantes y **cualquier asistente de IA** antes de trabajar. Si algo no está acá, no está decidido.
+
+> **Qué cambió en la v0.2 (rama `dev/sofia`).** El backend se reestructuró con los paquetes del proyecto de referencia del profesor (`app.mappings`, `app.service`, `app.dto`, `app.controller`, `app.exception`) y sin `Repository` ni puertos: ver D47, D31, D33, §8 y §14.1. **El comportamiento externo no cambió**: mismos endpoints, respuestas, documento OpenAPI, web y extensión. Las respuestas del Cliente (§3), las invariantes (§7), el contrato (§10) y los casos de prueba (§15.2) siguen iguales. La versión anterior (arquitectura hexagonal) está en la rama `dev/agustin`. 🟡 A confirmar en grupo cuál de las dos se entrega.
 
 ---
 
@@ -71,7 +73,7 @@ Ante una contradicción, manda la fuente de mayor jerarquía:
 | Java | **25** (confirmado por el Cliente) | [C16] |
 | Build | Gradle | [A][S] |
 | Spring Boot / Gradle | Versión compatible con Java 25. **Se verifica en el Paso 0** (ver §5, R11) | [S] |
-| Proyecto de referencia del profesor | `SpringBootProject`: Gradle, Spring Boot 3.4.3, Java 21, HSQLDB modo servidor, `@Service` con `EntityManager` + HQL, consola `jpql-console-starter` | [A][S] |
+| Proyecto de referencia del profesor | `SpringBootProject` (github.com/thejavalistener/SpringBootProject): Gradle, Spring Boot 3.4.3, Java 21, HSQLDB modo servidor, `@Service` con `EntityManager` + HQL **sin `Repository` ni DAO**, paquetes `app.mappings` / `service` / `dto` / `controller` / `exception`, consola `jpql-console-starter`. Su `docs/Enunciado.md` es de otro TP (sistema de ventas): se toma como modelo de estructura, no como requisito | [A][S] |
 
 ---
 
@@ -91,7 +93,7 @@ Resumen literal de `TP_PP6_v1.0.md`:
 
 **Regla del "Cliente Incierto":** las Etapas 2 y 3 traen cambios desconocidos. Se evalúa si el diseño los absorbe **sin reescrituras masivas** [C20].
 
-**Criterio rector del diseño** (las tres propuestas coinciden): hacer lo mínimo que pide la consigna, pero **aislar detrás de una interfaz todo lo que el Cliente podría cambiar**: generación del alias, vencimiento, validación de URL, QR y motor de base. Un cambio futuro se resuelve con **una clase nueva más configuración**.
+**Criterio rector del diseño:** hacer lo mínimo que pide la consigna, con la **estructura de capas del proyecto de referencia del profesor** (controller → service → entidad) y **una clase por responsabilidad**: generación del alias, validación de URL, QR y reglas del enlace están cada una en su clase, y todo lo configurable está en `application.properties`. Un cambio futuro se resuelve **modificando una sola clase, o con configuración** (§14). *(En la v0.1 el criterio era aislar cada punto detrás de una interfaz; se reemplazó por D47.)*
 
 ---
 
@@ -143,7 +145,7 @@ Obtenidas en la elucidación (minuta registrada por Sofía). **Tienen prioridad 
 | # | Decisión | Motivo | Origen |
 |---|---|---|---|
 | D8 | **5 caracteres**, alfabeto de **minúsculas y dígitos sin caracteres ambiguos** (sin `0`, `o`, `1`, `l`, `i`): 31 caracteres, 31⁵ ≈ **28,6 millones** de combinaciones. Largo y alfabeto configurables (`app.alias.length`, `app.alias.alphabet`) | C2 ("fácil de recordar"): corto, sin confusiones al dictarlo o copiarlo a mano. Sobra espacio para el tráfico esperado (C15) | [S] (base de [A]) |
-| D9 | Generación aleatoria con `SecureRandom`, detrás de la estrategia `AliasGenerator` | Strategy: un alias personalizado o numérico es una clase nueva | [M][A][S] |
+| D9 | Generación aleatoria con `SecureRandom`, en la clase `AliasGenerator` | Clase aparte de `LinkService`: un alias personalizado o numérico se resuelve ahí, sin tocar el resto | [M][A][S], ajustada por D47 |
 | D10 | **Palabras reservadas** configurables (`app.alias.reserved`): `api`, `admin`, `static`, `assets`, `error`, `expired`, `health`, `actuator`, `swagger`, `favicon.ico`, `index`. El generador nunca devuelve una | C4. Con el alfabeto de D8 y largo 5 ninguna es generable hoy, pero la regla protege ante un cambio de largo/alfabeto y ante el futuro alias personalizado | [S] |
 | D11 | Colisión: se genera otro alias, **máximo 10 intentos** (`app.alias.max-attempts`); agotados, **`503`** con mensaje claro | Evita un bucle infinito | [M][A][S] |
 | D12 | **Misma URL dos veces → dos alias distintos**, cada uno con sus 60 minutos | C3 | [M][A][S][C3] |
@@ -180,9 +182,9 @@ Obtenidas en la elucidación (minuta registrada por Sofía). **Tienen prioridad 
 |---|---|---|---|
 | D29 | **HSQLDB en modo archivo** (`./data/shortener`) | C13 (los enlaces sobreviven a un reinicio), sin servidor aparte, mismo motor que el ejemplo del profesor | [A][S] ([M] proponía HSQLDB o H2) |
 | D30 | El **alias es la clave primaria** de `short_link`: la base garantiza la unicidad | Con borrado físico no hacen falta columnas extra (`active_alias`) ni índices parciales | [S] (reemplaza la solución de [M]) |
-| D31 | Acceso a datos con **`EntityManager` + JPQL parametrizado, detrás del puerto `ShortLinkRepository`** | Estilo del proyecto del profesor; el puerto permite cambiar la implementación. 🟡 A confirmar en grupo (R8) | [A][S] |
+| D31 | Acceso a datos con **`EntityManager` + JPQL parametrizado, directamente en `LinkService`**. Sin `Repository` ni puerto | Es lo que indica el proyecto del profesor ("cada `@Service` será dueño de sus consultas"). Cambiar de motor sigue siendo configuración y driver (JPA). 🟡 A confirmar en grupo (R8) | [A][S], revisada en la v0.2 |
 | D32 | La creación usa **`persist`**, nunca `merge` | Con el alias como PK, un `merge` sobrescribiría en silencio un enlace vigente (ver I2) | [Nuevo] |
-| D33 | Configuración con `@ConfigurationProperties` + `@Validated` (`AppProperties`). Si falta `app.base-url`, la app **no arranca** | Mejor fallar al iniciar que generar enlaces con un dominio equivocado | [M][A][S] |
+| D33 | Configuración con `@Value` sobre las propiedades `app.*` en la clase que las usa. **No hay validación al arrancar**: con los valores de §12.2 no hace falta, pero un valor mal puesto (por ejemplo `app.base-url` vacío) ya no impide el arranque | Mismo mecanismo simple en todas las clases. Costo conocido: se pierde el "fallar al iniciar" de la v0.1 (`AppProperties` + `@Validated`) | Revisada en la v0.2 |
 | D34 | Un único `application.properties`; `app.base-url` se sobrescribe con la variable de entorno `APP_BASE_URL` al pasar al VPS | C12: solo hay un entorno en esta entrega. 🟡 A confirmar en grupo (R10) | [S] |
 | D35 | Esquema con `ddl-auto=update` en la Etapa 1; migraciones versionadas cuando el esquema cambie (BL-003) | Una tabla no justifica Flyway todavía | [M][A] |
 | D36 | **Logging SLF4J básico:** creación, redirección, 404 y cantidad de filas borradas por el cron | C18 (deseable si no complica) | [S] |
@@ -202,6 +204,12 @@ Obtenidas en la elucidación (minuta registrada por Sofía). **Tienen prioridad 
 | D45 | CORS habilitado en `/api/**` para orígenes `chrome-extension://…` y `moz-extension://…` | La extensión llama desde otro origen | [M][A][S] |
 | D46 | Navegadores: Chrome y Firefox actuales de escritorio | C16 (los define el equipo) | [S] |
 
+### 4.7. Estructura del código
+
+| # | Decisión | Motivo | Origen |
+|---|---|---|---|
+| D47 | **Estructura de paquetes del proyecto de referencia del profesor**: `app.mappings` (entidades), `app.service` (reglas de negocio y JPQL), `app.dto` (entrada y salida HTTP), `app.controller` (endpoints), `app.exception` (excepciones y manejador HTTP). Inyección con `@Autowired` sobre el campo. Sin interfaces intermedias | Es la estructura que el profesor enseña y va a reconocer; para una sola tabla, la arquitectura hexagonal de la v0.1 era más ceremonia de la necesaria (46 archivos contra 15). Costo: un cambio futuro se hace modificando una clase en lugar de agregando una implementación (§14.1). 🟡 A confirmar en grupo | [S] (v0.2) |
+
 ---
 
 ## 5. Divergencias entre propuestas y cómo se resolvieron
@@ -217,15 +225,15 @@ Las filas marcadas 🟡 son recomendaciones con las que el equipo **avanza** has
 | R5 | Endpoint de metadatos `GET /api/v1/links/{alias}[/info]` | Sí | Sí | No | **No en la Etapa 1** (D27): ningún cliente lo usa (C8). Queda en BL-005 |
 | R6 | "Tiempo restante" en la respuesta | No (el cliente lo calcula desde `expiresAt`) | No | `secondsRemaining` | **Se incluye** (D24): resuelve el desfase entre el reloj del servidor y el del dispositivo, que el argumento de Martín no cubría. El cliente lo cuenta desde el momento en que recibe la respuesta |
 | R7 | Unicidad del alias | `id` autoincremental + columna `active_alias UNIQUE` | `id` + alias único entre activos | **Alias como PK** | **Alias como PK** (D30): con borrado físico, la solución de Martín ya no hace falta |
-| R8 | Acceso a datos | Spring Data JPA | `EntityManager` + JPQL tras interfaz | `EntityManager` + JPQL tras interfaz | 🟡 **`EntityManager` + JPQL tras el puerto** (D31): alineado al profesor, 2 de 3 propuestas |
+| R8 | Acceso a datos | Spring Data JPA | `EntityManager` + JPQL tras interfaz | `EntityManager` + JPQL tras interfaz | 🟡 **`EntityManager` + JPQL directo en el service** (D31, v0.2): es lo que hace el proyecto del profesor. La v0.1 lo ponía tras un puerto |
 | R9 | Entornos | Perfiles `dev`/`prod` | `staging` local + **prod en `https://paradigmas6.agustingimenez.ar`** | Local; VPS futuro sin HTTPS | **Local en esta entrega** (C12), **sin HTTPS** (C14). El dominio de Agustín queda como candidato para el VPS (E3) |
 | R10 | Perfiles de Spring | `dev`/`prod` | `staging`/`prod` | Un archivo + `APP_BASE_URL` | 🟡 **Un archivo + variable de entorno** (D34). Se agrega un perfil `vps` solo si el despliegue lo necesita |
 | R11 | Versión de Java/Spring Boot | — | Java 21 + Spring Boot 3.4.3 (ejemplo) | Java 25 | **Java 25** (C16). Spring Boot 3.4.3 no lo soporta oficialmente. En el Paso 0 se verifica y se registra en la bitácora la versión de Spring Boot y de Gradle compatibles (candidatos: la última 3.5.x o 4.0.x de Spring Boot; Gradle 9.1 o superior) |
 | R12 | Extensión: URL del backend | Configurable (`storage`) | Página de opciones | Constante en `config.js` | **Constante** (D44): lo dijo el Cliente (C10) |
-| R13 | Cobertura | Indicador; lo importante son las mutaciones | ≥ 80 % | ≥ 70 % | 🟡 **≥ 70 % en `domain` + `application`** como indicador, **más** pruebas de mutación de las invariantes (§15.4). Q2 lo consulta |
+| R13 | Cobertura | Indicador; lo importante son las mutaciones | ≥ 80 % | ≥ 70 % | 🟡 **≥ 70 % en `app.mappings` + `app.service`** como indicador, **más** pruebas de mutación de las invariantes (§15.4). Q2 lo consulta |
 | R14 | Rigor de QA | Invariantes, matriz EP/BVA, mutaciones, definición de "terminado" | Tests + checklist | Tests + checklist | **Se adopta el esquema de Martín** (§7, §15), adaptado a las decisiones de esta sección |
 | R15 | Documentación por paso | ADR + documento | `BITACORA.md` | `BITACORA.md` **+ registro de prompts** | **`BITACORA.md` con registro de prompts** (obligatorio por C18) + **ADR** para las decisiones difíciles de revertir (§14.3) |
-| R16 | Paquete raíz | `ar.edu.undef.fie.pp6` | `com.pp6.shortener` | `com.pp6.shortener` (a acordar) | `❓ Pendiente` (E6). Recomendación: `ar.edu.undef.fie.pp6.shortener` |
+| R16 | Paquete raíz | `ar.edu.undef.fie.pp6` | `com.pp6.shortener` | `com.pp6.shortener` (a acordar) | **`app`**, como el proyecto del profesor (D47). La v0.1 usaba `ar.edu.undef.fie.pp6.shortener` |
 | R17 | QR fuera de rango de tamaño | — | Acotado 128..1024 | Acotado 128..1024 | Rango 128..1024 px, `size=256` por defecto. Fuera de rango: `❓ Pendiente` (E7). Recomendación: `400`, porque ajustarlo en silencio esconde el error |
 | R18 | Regla de `git add` | Nunca `git add .` | — | — | El `README.md` actual usa `git add .`. **Se adopta la regla de Martín** y hay que actualizar el README (§19.2) |
 
@@ -238,7 +246,7 @@ Las filas marcadas 🟡 son recomendaciones con las que el equipo **avanza** has
 | # | Pregunta | Suposición por defecto |
 |---|---|---|
 | Q1 | ¿Cuál es el formato de entrega de la Etapa 1? | Repositorio git, `.zip` de la extensión y carpeta `docs/` con la bitácora y el registro de prompts |
-| Q2 | ¿Hay una cobertura mínima de pruebas esperada? | ≥ 70 % en `domain` + `application` |
+| Q2 | ¿Hay una cobertura mínima de pruebas esperada? | ≥ 70 % en `app.mappings` + `app.service` |
 | Q3 | ¿Hay un formato específico para el registro de prompts? | `docs/BITACORA.md`, una entrada por paso con los prompts usados (§17) |
 | Q4 | ¿Alcanza con entregar la extensión sin firmar, cargada en modo desarrollador? (En Firefox la carga es temporal y se pierde al reiniciar el navegador) | Sí. El README explica cómo cargarla en ambos navegadores |
 | Q5 | ¿Valida las decisiones propias D5 (borrado con cron), D7 (`404` único) y D20 (`302`)? | Se presentan como supuestos en la minuta y se pueden revisar |
@@ -254,7 +262,7 @@ Las filas marcadas 🟡 son recomendaciones con las que el equipo **avanza** has
 | E3 | ¿El VPS usa dominio o IP? ¿Puerto 80 u 8080? | Candidato: `paradigmas6.agustingimenez.ar`. Sin HTTPS (C14); puerto 8080 salvo que haya proxy |
 | E4 | ¿Los alias quedan en la raíz del dominio (`/xt3se`)? | Sí, dominio o IP dedicados al TP |
 | E5 | ¿Deploy manual o automático? | Manual con script; fuera del alcance de la Etapa 1 |
-| E6 | Nombre del paquete raíz | `ar.edu.undef.fie.pp6.shortener` (R16) |
+| E6 | Nombre del paquete raíz | `app` (R16, D47) |
 | E7 | QR con `size` fuera de 128..1024 | `400` (R17) |
 | E8 | Herramienta de pruebas en navegador | Verificación manual con capturas en la Etapa 1; Playwright si sobra tiempo |
 | E9 | ¿Swagger UI y logs SQL activos en el VPS? | Activos en local; en el VPS se decide al desplegar |
@@ -269,12 +277,12 @@ Una **invariante** es una regla cuyo incumplimiento es un incidente, no un bug m
 
 | ID | Invariante | Dónde se sostiene | Casos que la prueban |
 |---|---|---|---|
-| **I1** | Un enlace **nunca redirige si `now ≥ expiresAt`**, haya corrido o no el cron | Método de dominio `isExpired(Instant now)`, evaluado en cada lectura | TC-03, TC-04 |
-| **I2** | **Como máximo un enlace por alias**, incluso con pedidos simultáneos; una creación **nunca sobrescribe** un enlace vigente | Alias como PK + `persist` (nunca `merge`) + reintento ante `DataIntegrityViolationException` | TC-21, TC-31 |
+| **I1** | Un enlace **nunca redirige si `now ≥ expiresAt`**, haya corrido o no el cron | Método de la entidad `isExpired(Instant now)`, evaluado en cada lectura (`LinkService.findLive`) | TC-03, TC-04 |
+| **I2** | **Como máximo un enlace por alias**, incluso con pedidos simultáneos; una creación **nunca sobrescribe** un enlace vigente | Alias como PK + `persist` (nunca `merge`) + reintento ante la violación de la PK, en `LinkService.shorten` | TC-21, TC-31 |
 | **I3** | La redirección **nunca es un 301** | `RedirectController` | TC-32 |
-| **I4** | La `shortUrl` y el QR se arman **siempre desde `app.base-url`**, nunca desde los headers de la petición | Servicio de creación / mapper de respuesta | TC-33, TC-50 |
+| **I4** | La `shortUrl` y el QR se arman **siempre desde `app.base-url`**, nunca desde los headers de la petición | `LinkService.shortUrl` (lo usan la creación y `QrService`) | TC-33, TC-50 |
 | **I5** | **Ningún secreto en el repositorio** (credenciales, `.env`) | Variables de entorno + `.gitignore` + revisión de `git status` antes de cada commit | Revisión |
-| **I6** | **El cron nunca borra un enlace vigente** | Consulta `deleteExpiredBefore(now)` con condición `expiresAt <= now` | TC-41, TC-42 |
+| **I6** | **El cron nunca borra un enlace vigente** | Consulta JPQL de `LinkService.purgeExpired` con condición `expiresAt <= now` | TC-41, TC-42 |
 | **I7** | **Ningún endpoint lista enlaces** ni devuelve una URL destino sin conocer su alias | Contrato de la API (§10) | TC-36 |
 
 **Límite documentado de I1:** depende de que el reloj del servidor esté bien. Un reloj atrasado alarga la vida de los enlaces; tener el reloj sincronizado (NTP) es un requisito de despliegue.
@@ -290,49 +298,43 @@ Una **invariante** es una regla cuyo incumplimiento es un incidente, no un bug m
        \               /
         \   HTTP/JSON /
          v           v
-  ┌───────────── Backend Spring Boot ─────────────┐
-  │ web        : controllers REST + redirección   │
-  │ application: casos de uso (servicios)         │
-  │ domain     : entidad + interfaces (puertos)   │
-  │ infra      : JPA, alias, QR, validación, cron │
-  └───────────────────────┬───────────────────────┘
+  ┌───────────── Backend Spring Boot ──────────────┐
+  │ controller : endpoints REST + redirección      │
+  │ dto        : entrada y salida JSON             │
+  │ service    : reglas de negocio + JPQL          │
+  │ mappings   : entidad JPA                       │
+  │ exception  : errores de negocio → HTTP         │
+  └───────────────────────┬────────────────────────┘
                           v
                 HSQLDB modo archivo (JPA/Hibernate)
 ```
 
-**Regla de dependencias:** `web → application → domain ← infrastructure`. El dominio no conoce Spring MVC, ni ZXing, ni HSQLDB.
+**Regla de dependencias:** `controller → service → mappings`. El controller no tiene reglas de negocio, consultas ni transacciones; el service no conoce HTTP. Los `dto` son lo único que entra y sale por la API (D28).
 
 ### 8.2. Paquetes
 
-Paquete raíz provisorio: `<raíz>` = `ar.edu.undef.fie.pp6.shortener` (`❓ Pendiente`, E6).
+Paquete raíz: `app`, como el proyecto de referencia del profesor (D47).
 
 ```text
-<raíz>
-├── ShortenerApplication.java
-├── config/            AppProperties (@ConfigurationProperties + @Validated), ClockConfig, CorsConfig
-├── domain/
-│   ├── model/         ShortLink (@Entity)
-│   ├── port/          AliasGenerator, ExpirationPolicy, UrlValidator, QrCodeGenerator, ShortLinkRepository
-│   └── exception/     InvalidUrlException, LinkNotAvailableException, AliasExhaustedException
-├── application/       ShortenLinkService, ResolveLinkService, ExpiredLinksCleanupService
-├── infrastructure/
-│   ├── persistence/   JpaShortLinkRepository (EntityManager + JPQL)
-│   ├── alias/         RandomAliasGenerator
-│   ├── expiration/    FixedTtlExpirationPolicy
-│   ├── validation/    RegexUrlValidator
-│   ├── qr/            ZxingQrCodeGenerator
-│   └── scheduling/    ExpiredLinksCleanupJob (@Scheduled)
-└── web/
-    ├── api/           LinkApiController + dto/ (ShortenRequest, ShortLinkResponse)
-    ├── redirect/      RedirectController
-    └── error/         GlobalExceptionHandler (ProblemDetail RFC 7807)
+app
+├── Application.java   main, bean Clock (UTC, milisegundos), CORS de /api/** (D45), @EnableScheduling
+├── mappings/          ShortLink (@Entity)
+├── dto/               ShortenRequest, ShortLinkResponse
+├── controller/        LinkController (POST /api/v1/links y GET .../qr), RedirectController (GET /{alias})
+├── service/
+│   ├── LinkService    acortar, resolver y borrar vencidos; EntityManager + JPQL
+│   ├── QrService      QR de un enlace vigente (ZXing)
+│   ├── UrlValidator   reglas de la URL destino
+│   └── AliasGenerator alias aleatorio, saltea palabras reservadas
+└── exception/         InvalidUrlException, InvalidQrSizeException, LinkNotFoundException,
+                       AliasUnavailableException, GlobalExceptionHandler (ProblemDetail RFC 7807)
 
 src/main/resources/static/   index.html, app.js, styles.css, enlace-no-disponible.html
-browser-extension/           manifest.json, popup.html, popup.js, config.js
-docs/                        BITACORA.md, adr/, minutas/
+browser-extension/           manifest.json, popup.html, popup.js, popup.css, config.js
+docs/                        BITACORA.md, adr/, diagramas/, evidencias/, propuestas/
 ```
 
-> **Nota sobre `ShortLink` con `@Entity` en `domain/model`:** es una concesión pragmática compartida por las tres propuestas (una sola tabla, estilo del profesor). Si en una etapa futura el modelo crece, se separa en entidad de dominio + entidad JPA con un mapper.
+> **Nota sobre `LinkService.shorten`:** no usa `@Transactional` sino `TransactionTemplate`, porque cada intento de alias necesita su propia transacción: después de una violación de la PK la sesión de Hibernate queda inutilizable (I2). El borrado de vencidos sí usa `@Transactional`.
 
 ### 8.3. Diagrama de secuencia: acortamiento
 
@@ -341,11 +343,11 @@ sequenceDiagram
     autonumber
     actor Usuario
     participant Cliente as Web / Extensión
-    participant API as LinkApiController
-    participant Svc as ShortenLinkService
+    participant API as LinkController
+    participant Svc as LinkService
     participant Val as UrlValidator
     participant Gen as AliasGenerator
-    participant Repo as ShortLinkRepository
+    participant EM as EntityManager
 
     Usuario->>Cliente: Ingresa la URL (o abre la extensión)
     Cliente->>API: POST /api/v1/links { "url": "https://..." }
@@ -354,11 +356,11 @@ sequenceDiagram
     loop hasta app.alias.max-attempts
         Svc->>Gen: generate()
         Gen-->>Svc: alias
-        Svc->>Repo: findByAlias(alias)
-        Note over Svc,Repo: vigente → otro alias · vencido sin borrar → se borra (D6)<br/>shortUrl == url → otro alias (D13)
+        Svc->>EM: find(ShortLink, alias)
+        Note over Svc,EM: vigente → otro alias · vencido sin borrar → se borra (D6)<br/>shortUrl == url → otro alias (D13)
     end
-    Svc->>Repo: persist(ShortLink)
-    Note over Svc,Repo: si otra transacción tomó el alias, falla la PK y se reintenta
+    Svc->>EM: persist(ShortLink)
+    Note over Svc,EM: si otra transacción tomó el alias, falla la PK y se reintenta
     Svc-->>API: ShortLinkResponse (shortUrl desde app.base-url)
     API-->>Cliente: 201 Created
     Cliente-->>Usuario: Enlace, botón Copiar, QR, botón Descargar, hora de vencimiento
@@ -371,12 +373,12 @@ sequenceDiagram
     autonumber
     actor Nav as Navegador
     participant RC as RedirectController
-    participant Svc as ResolveLinkService
-    participant Repo as ShortLinkRepository
+    participant Svc as LinkService
+    participant EM as EntityManager
 
     Nav->>RC: GET /{alias}
     RC->>Svc: resolve(alias)
-    Svc->>Repo: findByAlias(alias)
+    Svc->>EM: find(ShortLink, alias)
     alt No existe, o now ≥ expiresAt
         RC-->>Nav: 404 + enlace-no-disponible.html
     else Vigente
@@ -395,9 +397,9 @@ sequenceDiagram
 | `alias` | String(16) | **Clave primaria**. La base garantiza la unicidad (I2) |
 | `originalUrl` | String(2048) | URL destino, guardada tal cual |
 | `createdAt` | Instant | Alta (UTC), tomada del `Clock` |
-| `expiresAt` | Instant | `createdAt + TTL`, calculado por `ExpirationPolicy`. **Indexado** para el cron |
+| `expiresAt` | Instant | `createdAt + TTL` (`app.link.ttl`), calculado en `LinkService`. **Indexado** para el cron |
 
-**Método de dominio:** `isExpired(Instant now)` devuelve `!now.isBefore(expiresAt)`. La regla "¿está vencido?" vive en la entidad, no en el controller.
+**Método de la entidad:** `isExpired(Instant now)` devuelve `!now.isBefore(expiresAt)`. La regla "¿está vencido?" vive en la entidad, no en el controller.
 
 ```mermaid
 erDiagram
@@ -511,7 +513,7 @@ Se documenta con **springdoc-openapi / Swagger UI**. Fechas en **UTC, ISO-8601**
 - Tipos SQL estándar (`VARCHAR`, `TIMESTAMP`), compatibles con HSQLDB, H2 y PostgreSQL: cambiar de motor es cambiar configuración y driver.
 - Índice explícito sobre `expires_at` para el borrado del cron.
 - Los timestamps salen del `Clock` inyectado, nunca de la base.
-- Puerto `ShortLinkRepository`: `persist`, `findByAlias`, `deleteByAlias`, `deleteExpiredBefore(Instant)` (devuelve la cantidad borrada).
+- Sin `Repository`: `LinkService` usa el `EntityManager` (`find`, `persist`, `remove`) y una consulta JPQL parametrizada para borrar los vencidos, que devuelve la cantidad borrada (D31).
 
 ### 12.2. Propiedades (`application.properties`)
 
@@ -552,35 +554,38 @@ Se documenta con **springdoc-openapi / Swagger UI**. Fechas en **UTC, ISO-8601**
 
 ### 14.1. Patrones y puntos de extensión
 
+Con la estructura de D47 no hay interfaces intermedias: cada cambio tiene **una clase dueña**, y se resuelve modificándola. Si un punto llega a necesitar dos comportamientos a la vez (por ejemplo alias aleatorio y personalizado), recién ahí se extrae una interfaz, sin tocar los controllers.
+
 | Patrón / principio | Dónde | Qué cambio futuro absorbe |
 |---|---|---|
-| **Strategy** | `AliasGenerator` | Alias personalizado, numérico o secuencial: una clase nueva y una línea de config |
-| **Strategy** | `ExpirationPolicy` | TTL por enlace o por usuario, enlaces permanentes, vencimiento por cantidad de usos |
-| **Strategy** (+ Decorator) | `UrlValidator` | Lista negra de dominios, más esquemas, filtros anti-abuso |
-| **Puertos y adaptadores** | `ShortLinkRepository`, `QrCodeGenerator` | Cambiar de base o de librería de QR sin tocar los servicios |
-| **DTO** | `web/api/dto` | Cambiar el JSON sin tocar la entidad, y viceversa |
-| **`Clock` inyectable** | Servicios, política de expiración y cron | Probar el vencimiento sin esperar |
-| **Configuración externa** | `AppProperties` | Dominio, TTL, alias, palabras reservadas y cron sin recompilar |
+| **Capas** (controller → service → entidad) | Todo el backend | El HTTP, las reglas y los datos cambian por separado |
+| **Una clase por responsabilidad** (SRP) | `AliasGenerator` | Alias personalizado, numérico o secuencial: se cambia esa clase |
+| **Una clase por responsabilidad** | `UrlValidator` | Lista negra de dominios, más esquemas, filtros anti-abuso |
+| **Una clase por responsabilidad** | `QrService` | Otra librería de QR, otro formato o tamaño |
+| **Reglas del enlace en un solo service** | `LinkService` | TTL por enlace, enlaces permanentes, vencimiento por usos, extender un enlace |
+| **JPA** | `LinkService` + `application.properties` | Cambiar de motor de base es configuración y driver |
+| **DTO** | `app.dto` | Cambiar el JSON sin tocar la entidad, y viceversa |
+| **`Clock` inyectable** | `LinkService` | Probar el vencimiento sin esperar |
+| **Configuración externa** | `application.properties` (`@Value`) | Dominio, TTL, alias, palabras reservadas y cron sin recompilar |
 | **Manejador global de errores** | `GlobalExceptionHandler` | Una excepción nueva es un `@ExceptionHandler` más |
 | **Versionado de la API** | `/api/v1` | Un cambio incompatible sale como `/api/v2` |
-| **Eventos de dominio** (punto de extensión, no se implementa) | `ResolveLinkService` publicaría `LinkAccessedEvent` | Estadísticas: un listener nuevo sin tocar la redirección |
-| SOLID (SRP, OCP, DIP) | Todo el diseño | Extender agregando clases, no modificando las existentes |
+| **Eventos de dominio** (punto de extensión, no se implementa) | `LinkService.resolve` publicaría `LinkAccessedEvent` | Estadísticas: un listener nuevo sin tocar la redirección |
 
 ### 14.2. Cambios probables ("volantazos")
 
 | Cambio probable | Dónde impacta | Qué hay que hacer |
 |---|---|---|
-| Alias personalizado | `AliasGenerator` + DTO | Campo opcional en el request; validar disponibilidad y palabras reservadas |
-| TTL por enlace o enlaces permanentes | `ExpirationPolicy` + DTO | Nueva implementación y campo opcional. `expiresAt` nulo = permanente (el cron solo borra los no nulos) |
+| Alias personalizado | `LinkService` + `AliasGenerator` + DTO | Campo opcional en el request; validar disponibilidad y palabras reservadas |
+| TTL por enlace o enlaces permanentes | `LinkService` + DTO | Campo opcional y cálculo de `expiresAt` en el service. `expiresAt` nulo = permanente (el cron solo borra los no nulos) |
 | Extender o renovar un enlace | Caso de uso nuevo | `PATCH` que actualiza `expiresAt` |
 | Eliminar un enlace manualmente | Endpoint nuevo | `DELETE /api/v1/links/{alias}` |
 | Usuarios / "mis enlaces" | Entidad `User`, columna `ownerId` nullable | Spring Security; los servicios no cambian su lógica. **Ojo:** el cron borra; un historial por usuario exige archivar en vez de borrar (revisar D5) |
-| Estadísticas de clics | Entidad `ClickEvent`, evento en `ResolveLinkService` | Un evento por redirección + endpoint de reportes. Definir qué pasa con los eventos cuando se borra el enlace (revisar D5) |
-| Vencimiento por cantidad de usos / un solo uso | `ExpirationPolicy` + contador | Sin tocar los controllers |
-| Enlaces con contraseña | Campo en `ShortLink` + página intermedia | Cambio acotado en `ResolveLinkService` |
-| Rate limiting / anti-abuso / lista negra | `UrlValidator` o filtro web | Implementación nueva o decorador |
+| Estadísticas de clics | Entidad `ClickEvent`, evento en `LinkService.resolve` | Un evento por redirección + endpoint de reportes. Definir qué pasa con los eventos cuando se borra el enlace (revisar D5) |
+| Vencimiento por cantidad de usos / un solo uso | `LinkService` + contador en `ShortLink` | Sin tocar los controllers |
+| Enlaces con contraseña | Campo en `ShortLink` + página intermedia | Cambio acotado en `LinkService.resolve` |
+| Rate limiting / anti-abuso / lista negra | `UrlValidator` o filtro web | Regla nueva en el validador, o un filtro |
 | Previsualizar el destino | `RedirectController` | Página intermedia opcional |
-| QR personalizado o SVG | `QrCodeGenerator` | Implementación nueva + parámetro |
+| QR personalizado o SVG | `QrService` | Método nuevo + parámetro |
 | Dominio propio y HTTPS | `app.base-url` + reverse proxy | Configuración, sin código |
 | Cambiar a PostgreSQL/MySQL | Configuración + driver | Nada de código (JPA) |
 | Varias instancias del servicio | Cron y alias | La PK ya evita duplicados; el cron debe correr en una sola instancia (lock) |
@@ -607,6 +612,10 @@ Se registra un **ADR** (`docs/adr/NNNN-slug.md`: contexto, decisión, alternativ
 - **ADR-0005:** HSQLDB en modo archivo, cambiable por configuración (D29).
 - **ADR-0006:** `404` único para vencido e inexistente (D7).
 
+Los ADR-0001 a 0006 siguen vigentes: ninguno trata sobre la estructura de paquetes. Los nombres de clases que mencionan son los de la v0.1.
+
+- **ADR-0007:** estructura de paquetes del proyecto de referencia del profesor, sin `Repository` ni puertos (D47, D31, D33). Estado: propuesta, 🟡 a confirmar en grupo.
+
 ---
 
 ## 15. Plan de verificación y QA
@@ -615,15 +624,15 @@ Se registra un **ADR** (`docs/adr/NNNN-slug.md`: contexto, decisión, alternativ
 
 | Capa | Herramienta | Qué atrapa que las otras no |
 |---|---|---|
-| Unitarias | JUnit 5 + Mockito, `Clock` fijo | Alias, política de expiración, validación de URL, servicios |
-| Integración | `@SpringBootTest` + MockMvc, `@DataJpaTest` | Contrato HTTP, códigos de estado, consultas JPQL |
-| Contra el motor real | Tests de repositorio sobre HSQLDB modo archivo | Comportamiento de la PK, del índice y de la persistencia entre reinicios |
+| Unitarias | JUnit 5, sin Spring | Entidad, DTO, `AliasGenerator`, `UrlValidator`, generación del PNG |
+| Integración | `@SpringBootTest` + MockMvc sobre HSQLDB en memoria, con un reloj que se mueve a mano y un generador de alias dictado | Reglas de `LinkService`, contrato HTTP, códigos de estado, consultas JPQL |
+| Contra el motor real | Test de reinicio sobre HSQLDB modo archivo (TC-35) | Comportamiento de la PK, del índice y de la persistencia entre reinicios |
 | Concurrencia | Dos hilos / dos transacciones reales | Que I2 resista pedidos simultáneos |
 | En navegador | Manual con capturas en Chrome y Firefox (Playwright opcional, E8) | CORS, render del QR, Copiar, estado "vencido" |
 | Mutaciones | A mano, en cada paso que toque una invariante | Tests que pasan sin poder fallar |
 | Verificación real | `curl -I`, consulta a la base, QR escaneado con un celular | Lo que ningún test modela |
 
-**Cobertura:** JaCoCo, objetivo ≥ 70 % en `domain` + `application` (R13). **No reemplaza** a las mutaciones: un test que no puede fallar suma cobertura y no protege nada.
+**Cobertura:** JaCoCo, objetivo ≥ 70 % en `app.mappings` + `app.service` (R13). **No reemplaza** a las mutaciones: un test que no puede fallar suma cobertura y no protege nada.
 
 ### 15.2. Matriz de casos de prueba (partición de equivalencia + valores límite)
 
@@ -729,14 +738,14 @@ En cada paso que toque una invariante se **rompe la regla a propósito**, se cor
 | Invariante | Mutación | Debe fallar |
 |---|---|---|
 | I1 | `!now.isBefore(expiresAt)` → `now.isAfter(expiresAt)` | TC-03 |
-| I1 | Ignorar `isExpired` en `ResolveLinkService` | TC-03, TC-04 |
+| I1 | Ignorar `isExpired` en `LinkService.findLive` | TC-03, TC-04 |
 | I2 | `persist` → `merge` en la creación | TC-21, TC-31 |
-| I2 | Quitar el reintento ante `DataIntegrityViolationException` | TC-31 |
+| I2 | Quitar el reintento ante la violación de la PK | TC-31 |
 | I3 | 302 → 301 | TC-32 |
 | I4 | Armar `shortUrl` desde el request | TC-33 |
 | I6 | `expiresAt <= now` → sin condición, o `>=` | TC-41, TC-42 |
 
-Si una mutación sobrevive, la regla **no está protegida**, diga lo que diga la cobertura.
+Si una mutación sobrevive, la regla **no está protegida**, diga lo que diga la cobertura. Las mutaciones están automatizadas en `scripts/mutation-test.ps1`.
 
 ### 15.5. Definición de "terminado"
 
@@ -760,6 +769,8 @@ Nada se declara "terminado" a secas: se escribe **"completo en `<entorno>`, pend
 ## 16. Plan de trabajo por pasos
 
 **No se arranca un paso sin el anterior cerrado** con sus evidencias (§15.5). Cada paso es un commit propio.
+
+> **Nota (v0.2):** la tabla registra cómo se construyó la v0.1, con sus nombres de clases. La reestructuración de D47 se hizo después del Paso 9, sobre el código terminado.
 
 > **Calendario:** la entrega es el **12/10/2026** y hoy (07/10) no hay código. El calendario original de Agustín (Paso 0 el 05/10) ya quedó atrás. Las fechas de abajo son una **propuesta comprimida**, a confirmar en la puesta en común (E10).
 
@@ -855,10 +866,11 @@ CONTEXTO
   configuración (app.base-url), nunca en código.
 
 REQUISITO NO FUNCIONAL CLAVE
-El Cliente va a cambiar requerimientos en las etapas 2 y 3 sin aviso. El código se
-extiende agregando clases, no reescribiendo: SOLID, Strategy para AliasGenerator,
-ExpirationPolicy y UrlValidator, puertos/adaptadores para persistencia y QR, DTOs,
-Clock inyectable, configuración vía @ConfigurationProperties.
+El Cliente va a cambiar requerimientos en las etapas 2 y 3 sin aviso. El código sigue
+la estructura del proyecto del profesor (D47): app.mappings, app.service, app.dto,
+app.controller, app.exception; sin Repository ni interfaces intermedias. Una clase por
+responsabilidad (AliasGenerator, UrlValidator, QrService, LinkService), DTOs, Clock
+inyectable y configuración en application.properties leída con @Value.
 
 INVARIANTES (no se negocian): I1 a I7 de contexto.md §7.
 
@@ -882,6 +894,8 @@ ALCANCE: <qué queda explícitamente afuera de este paso>
 ```
 
 ### 18.4. Detalle técnico de cada paso (para completar la plantilla)
+
+> **Nota (v0.2):** este detalle es el que se usó para construir la v0.1 y conserva sus nombres de clases. Para trabajo nuevo valen los paquetes y clases de §8.2.
 
 - **Paso 0:** Gradle, Java 25, Spring Boot compatible (verificar y registrar). Dependencias: `spring-boot-starter-web`, `data-jpa`, `validation`, `hsqldb`, `springdoc-openapi-starter-webmvc-ui`, `com.google.zxing:core` y `javase`, `spring-boot-starter-test`, plugin `jacoco`, `jpql-console-starter`. Propiedades de §12.2. `AppProperties` con `@Validated`, bean `Clock.systemUTC()`. README con cómo compilar, ejecutar y sobrescribir `APP_BASE_URL`.
 - **Paso 1:** `ShortLink` (alias PK, `originalUrl`, `createdAt`, `expiresAt` indexado) con `isExpired(Instant)`. Puerto con `persist`, `findByAlias`, `deleteByAlias`, `deleteExpiredBefore(Instant)` → cantidad. `JpaShortLinkRepository` con `EntityManager` + JPQL parametrizado.

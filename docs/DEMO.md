@@ -23,9 +23,9 @@ Objetivo: mostrar que el acortador cumple la consigna de punta a punta y que las
 | 2:30 | Abrir `/zzzzz` | "Inexistente y vencido muestran la misma página: no se puede adivinar qué alias existieron." |
 | 3:00 | Instancia con TTL de 40 s: crear un enlace y esperar | La tarjeta pasa a "vencido" sola y el enlace da 404. "Vence al leer, no depende del borrado nocturno." |
 | 3:30 | Extensión en una página cualquiera | Un clic: enlace y QR. Después abrirla en `chrome://extensions`: ACORTAR deshabilitado con el aviso. |
-| 4:00 | Terminal: `gradlew.bat build` (o la salida ya guardada) y `docs/CHECKLIST-ETAPA1.md` | "136 tests; los casos de la matriz se llaman `tcNN_…`. Además rompimos cada regla a propósito (31 mutaciones) y siempre falla algún test. Cobertura de dominio y aplicación: 98 %." |
+| 4:00 | Terminal: `gradlew.bat build` (o la salida ya guardada) y `docs/CHECKLIST-ETAPA1.md` | "117 tests; los casos de la matriz se llaman `tcNN_…`. Además rompimos cada regla a propósito (30 mutaciones) y siempre falla algún test. Cobertura de entidades y servicios: 96 %." |
 | 4:30 | `docs/BITACORA.md` y Swagger (`/swagger-ui.html`) | "Cada paso tiene su entrada con evidencias y el registro de prompts. La API está documentada con OpenAPI." |
-| 5:00 | Cierre | "Arquitectura hexagonal: cambiar la base, el generador de alias o el QR es otra clase, sin tocar los casos de uso." |
+| 5:00 | Cierre | "Misma estructura que el proyecto de referencia: controller, service, dto y mappings. Cada cosa que puede cambiar (alias, validación, QR) tiene su propia clase." |
 
 ## Si algo falla
 
@@ -44,3 +44,4 @@ Las respuestas están en `docs/BITACORA.md`, en la sección "Preguntas probables
 - ¿Cómo saben que los tests sirven? (mutaciones, §15.4)
 - ¿Qué es CORS y por qué solo para la extensión? (Paso 8)
 - ¿Por qué el QR se genera en el servidor? (Paso 6, ADR-0004)
+- ¿Por qué no hay Repository ni interfaces? (Paso 10, ADR-0007)

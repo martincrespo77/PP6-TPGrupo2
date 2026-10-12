@@ -1,6 +1,6 @@
 # ADR-0005: HSQLDB en modo archivo, cambiable por configuración
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada. El punto "detrás del puerto `ShortLinkRepository`" queda superado por ADR-0007 si el grupo lo confirma
 - **Fecha:** 09/10/2026
 - **Referencias:** `contexto.md` D29, D31, D34, C12, C13, R8, R10
 

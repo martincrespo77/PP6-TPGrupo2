@@ -1216,3 +1216,97 @@ En PowerShell el `-P…=0.999` va entre comillas: si no, PowerShell corta el arg
 | Prompt | Resumen de la respuesta | Qué se validó o corrigió |
 |---|---|---|
 | "Funcionó, continúa con el Paso 9" | Auditoría de los 38 TC, umbral de JaCoCo en `check`, revisión de logs y configuración del VPS, checklist §15.3, guion de demo, README final, suite completa de mutaciones | El primer intento de probar el umbral falló por el corte de argumentos de PowerShell, no por la regla. Los WARN de Swagger se silenciaron declarando la decisión, no ocultando el log. En el guion se agregó `--app.base-url` a la instancia de 40 s, que si no generaba enlaces al puerto equivocado |
+
+---
+
+## Paso 10 – Reestructuración con los paquetes del proyecto del profesor (11/10/2026)
+
+**Estado:** completo en local, en la rama `dev/sofia`. Pendiente: decisión del grupo sobre cuál de las dos versiones se entrega (🟡 D47, ADR-0007), aceptación de otro integrante, prueba manual de la web y la extensión en el navegador, y despliegue en el VPS si se elige esta versión.
+
+### Objetivo
+Dejar el backend con la misma estructura que el proyecto de referencia del profesor (`SpringBootProject`), simplificado para poder explicarlo línea por línea, **sin cambiar nada de lo que se ve desde afuera**. No cubre un requerimiento funcional nuevo: responde a la "arquitectura de capas" de la consigna y a la defensa.
+
+### Estado ANTERIOR
+Arquitectura hexagonal (Pasos 0 a 9): paquetes `domain`, `application`, `infrastructure`, `web` y `config` bajo `ar.edu.undef.fie.pp6.shortener`; 46 archivos y unas 1100 líneas; una interfaz (puerto) delante de la persistencia, el alias, el vencimiento, la validación y el QR. Esa versión sigue en la rama `dev/agustin` y es la desplegada en el VPS.
+
+### Qué es NUEVO
+| Archivo | Para qué sirve |
+|---|---|
+| `app/Application.java` | Arranque, bean `Clock`, CORS de `/api/**` y `@EnableScheduling` (reemplaza a `ShortenerApplication`, `ClockConfig`, `CorsConfig` y `SchedulingConfig`) |
+| `app/mappings/ShortLink.java` | La entidad, con la regla `isExpired` (I1). Misma tabla y columnas |
+| `app/dto/ShortenRequest.java`, `ShortLinkResponse.java` | Entrada y salida JSON |
+| `app/controller/LinkController.java` | `POST /api/v1/links` y `GET /api/v1/links/{alias}/qr` (une `LinkApiController` y `LinkQrController`) |
+| `app/controller/RedirectController.java` | `GET /{alias}` |
+| `app/service/LinkService.java` | Acortar, resolver y borrar vencidos, con `EntityManager` + JPQL (une los tres services, el repository, `LinkUrls` y `FixedTtlExpirationPolicy`) |
+| `app/service/QrService.java` | QR de un enlace vigente (une `LinkQrService` y `ZxingQrCodeGenerator`) |
+| `app/service/UrlValidator.java`, `AliasGenerator.java` | Las mismas reglas que `RegexUrlValidator` y `RandomAliasGenerator`, ya sin interfaz |
+| `app/exception/*` | Las 4 excepciones de negocio y `GlobalExceptionHandler` |
+| `src/test/java/app/**` | La suite adaptada a la estructura nueva (117 tests) |
+| `docs/adr/0007-estructura-del-proyecto-del-profesor.md` | La decisión, sus alternativas y su costo |
+
+### Qué se MODIFICÓ y por qué
+| Archivo | Cambio | Por qué |
+|---|---|---|
+| `src/main/java/ar/**`, `src/test/java/ar/**` | Eliminados | Reemplazados por `app/**` |
+| `build.gradle` | Cobertura sobre `app/mappings` + `app/service`; se quitó `spring-boot-starter-validation` | Los paquetes cambiaron; ya no hay `AppProperties` validado |
+| `scripts/mutation-test.ps1` | Las 30 mutaciones apuntan a los archivos nuevos; llama a `.\gradlew.bat` | Mismas reglas, otras rutas |
+| `scripts/deploy.ps1` | Busca "Started Application" en el log | Cambió el nombre de la clase principal |
+| `contexto.md` | v0.2: D47 nueva; D31, D33, D9, §2, §7, §8, §9.1, §12.1, §14, §15 y §18.2 actualizados | El documento describía la arquitectura anterior |
+| `README.md`, `docs/CHECKLIST-ETAPA1.md` | Nombres de paquetes, de tests y cifras | Coherencia con el código |
+
+### Cómo funciona (explicado simple)
+1. El navegador o la extensión mandan `POST /api/v1/links` con la URL.
+2. `LinkController` recibe el JSON como `ShortenRequest` y llama a `LinkService.shorten`. No tiene reglas ni consultas.
+3. `LinkService` valida la URL con `UrlValidator`, pide un alias a `AliasGenerator` y, dentro de una transacción, busca si ese alias existe: si está vigente prueba con otro, si está vencido lo borra, y guarda el enlace nuevo con `persist`.
+4. El service devuelve un `ShortLinkResponse` (DTO) y el controller responde `201`.
+5. Para redirigir, `RedirectController` llama a `LinkService.resolve`, que busca el alias y compara `expiresAt` con el reloj.
+6. Todos los días a las 3:00, `LinkService.purgeExpired` borra los vencidos con una consulta JPQL.
+
+### Decisiones de diseño
+- **D47 / ADR-0007:** paquetes del proyecto del profesor, sin `Repository` ni puertos.
+- **D31 (revisada):** `EntityManager` + JPQL directo en el service.
+- **D33 (revisada):** configuración con `@Value`; se pierde la validación al arrancar.
+- Se conserva la transacción por intento de alias (`TransactionTemplate`) para no cambiar el comportamiento ante dos pedidos simultáneos (I2).
+- Alternativas descartadas: mantener la hexagonal, conservar solo el puerto de persistencia, o un único `AppService` (detalle en ADR-0007).
+
+### Cómo probarlo
+```powershell
+.\gradlew.bat check                                                   # 117 tests + umbral de cobertura
+powershell -ExecutionPolicy Bypass -File scripts\mutation-test.ps1    # 30 mutaciones
+.\gradlew.bat bootRun                                                 # http://localhost:8080 y /swagger-ui.html
+```
+
+### Evidencias de cierre
+| Código | Evidencia |
+|---|---|
+| **T** | `gradlew check`: **117 tests, 0 fallos**. Los 38 `TC-xx` siguen presentes. Cobertura de líneas en `app.mappings` + `app.service`: **96 %** (umbral 70 %) |
+| **M** | `mutation-test.ps1` completo: 29 de 30 detectadas en la primera corrida. Sobrevivió **I2** (`persist` → `merge`): al fusionar el repository en el service se había perdido el test que la cubría. Se agregó `neverOverwritesAnExistingAliasEvenIfItLookedFree` y el Paso 1 se volvió a correr: 3 de 3 detectadas |
+| **V** | Las dos versiones levantadas a la vez (JAR de `dev/agustin` y JAR nuevo) con los mismos pedidos (unos 30): crear, errores 400/405/415/503, redirección en minúsculas y mayúsculas, 404, QR con tamaños y descarga, preflight CORS permitido y rechazado, y archivos estáticos. Las respuestas solo difieren en puerto, hora y alias aleatorio. El documento `/v3/api-docs` es **idéntico** |
+| **E2E** | ⛔ Pendiente: no se volvió a probar a mano en el navegador. Los archivos de la web y de la extensión no cambiaron |
+| **A** | ⛔ Pendiente: aceptación de un integrante que no hizo el cambio |
+| **D** | Esta entrada, ADR-0007 y `contexto.md` v0.2 |
+
+No verificado: la consola `jpql-console-starter` (en todas las pruebas se corrió con `hql-console.enabled=false`).
+
+### Preguntas probables del profesor (con respuesta)
+- **¿Por qué no hay Repository?** → Seguimos el proyecto de referencia: cada `@Service` es dueño de sus consultas y usa el `EntityManager`.
+- **¿Dónde está la lógica?** → En `app.service`. Los controllers solo traducen HTTP y los DTO son lo único que sale por la API.
+- **¿Por qué `LinkService.shorten` usa `TransactionTemplate` y no `@Transactional`?** → Si dos pedidos toman el mismo alias, uno falla por la clave primaria y esa transacción queda inutilizable; cada intento necesita la suya para poder reintentar con otro alias.
+- **¿Cómo absorben un cambio del Cliente sin interfaces?** → Cada cambio tiene una clase dueña (alias, validación, QR, reglas del enlace). Si hicieran falta dos comportamientos a la vez, se extrae la interfaz en ese momento sin tocar los controllers.
+- **¿Qué perdieron al simplificar?** → La validación de la configuración al arrancar y la posibilidad de probar los services sin base de datos.
+
+### Preparado para cambios
+`contexto.md` §14.1 y §14.2 indican qué clase se modifica para cada cambio probable. El punto más débil frente a la v0.1 es que agregar una variante (por ejemplo un segundo tipo de alias) implica tocar una clase existente.
+
+### Prompts utilizados (registro de IA)
+Herramienta: Claude Code (modelo Claude Opus), sesión de Sofía del 11/10/2026.
+
+| Prompt | Resumen de la respuesta | Qué se validó o corrigió |
+|---|---|---|
+| "¿Podés ver el proyecto de la rama dev/agustin? ¿Qué hace? ¿Cómo lo ejecuto?" | Resumen del sistema, endpoints y comandos de ejecución | Leído del README y del código, sin ejecutar |
+| "¿Podés ver este proyecto [repo del profesor]? Quiero ver si el acortador está hecho en base a la estructura que plantea el profesor" | Comparación: mismas tecnologías, otra estructura (hexagonal contra `mappings`/`service`/`controller`); el enunciado del profesor dice "sin Repository ni DAO" | Se aclaró que ese enunciado es de otro TP y que los paquetes `service`/`dto`/`controller` son una propuesta escrita ahí, no código existente |
+| "Lo que más me preocupa es el controller, service y dto... ¿cómo se podría defender?" | Mapa de dónde está cada rol en la versión hexagonal y argumentos de defensa | — |
+| "¿Se podrá reestructurar el proyecto en mi rama dev/sofia con la estructura exacta del profesor, simplificando lo más que se pueda, sin que por fuera se vea distinto?" | Merge local de `dev/agustin` en `dev/sofia`, reescritura en `app.*`, suite de tests adaptada, script de mutaciones actualizado | Línea de base (suite original en verde) antes de tocar nada; comparación lado a lado de las dos versiones; la mutación I2 sobrevivió y se agregó el test que faltaba |
+| "¿El Swagger de la documentación de los endpoints coincide con esta nueva versión?" | Sí: `/v3/api-docs` idéntico al de la versión original | Comparado con `diff` entre las dos versiones corriendo |
+| "¿Podés verificar el contexto de la rama main, si la versión en mi rama cumple con todo lo que pide ahí?" | Cumple lo funcional (C#, I#, §10, TC); no cumple §8, D31, D33 ni §14.1, que describían la arquitectura anterior | Se detectó además que faltaban el ADR y esta entrada |
+| "¿Podés actualizar contexto.md para mi rama únicamente?" y "Escribí lo que falta" | `contexto.md` v0.2, ADR-0007 y esta entrada | Las secciones históricas (§5, §16, §18.4) se dejaron con una nota en lugar de reescribirlas |
