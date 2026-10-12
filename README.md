@@ -1,88 +1,89 @@
-# PP6-TPGrupo2 - Servicio de Acortamiento y Gestión de Enlaces (Link Shortener)
+# PP6-TPGrupo2 – Acortador de enlaces (Link Shortener)
 
-Trabajo Práctico Integrador – **Paradigmas de Programación VI**  
-**Cátedra:** FIE – 5to Año – Ingeniería en Informática  
-**Stack Tecnológico:** Java, Spring Boot, JPA/Hibernate, API REST, Cliente Web, Extensión de Navegador.
+Trabajo Práctico Integrador – **Paradigmas de Programación VI** – Etapa 1
+**Cátedra:** FIE – 5to Año – Ingeniería en Informática
+**Equipo:** Martín Crespo · Sofía Ramirez · Agustín Gimenez
 
----
+- Consigna: [`TP_PP6_v1.0.md`](TP_PP6_v1.0.md)
+- Especificación, decisiones de diseño y plan de pruebas: [`contexto.md`](contexto.md)
 
-## 👥 Equipo de Trabajo
-- **Martín Crespo** (`dev/martin`)
-- **Sofía** (`dev/sofia`)
-- **Agustín** (`dev/agustin`)
+## Qué hace
 
----
+Pegás una dirección larga y obtenés un **enlace corto y su código QR, válidos por 60 minutos**. Después, el enlace responde "Este enlace expiró o no existe" y el alias puede volver a usarse.
 
-## 🌳 Estructura de Ramas en el Repositorio
+Hay dos clientes: la **página web** y la **extensión para Chrome y Firefox**. Los dos usan la misma API.
 
-| Rama | Propósito |
+| Endpoint | Qué hace |
 | :--- | :--- |
-| `main` | Rama principal estable. Solo código probado e integrado. |
-| `dev/martin` | Ambiente de trabajo de Martín. |
-| `dev/sofia` | Ambiente de trabajo de Sofía. |
-| `dev/agustin` | Ambiente de trabajo de Agustín. |
+| `POST /api/v1/links` con `{"url": "..."}` | Crea el enlace → `201` con `shortUrl`, `expiresAt`, `secondsRemaining` y `qrUrl`. `400` si la URL es inválida, `503` si no hay alias libres |
+| `GET /{alias}` | `302` a la URL original mientras está vigente; `404` (misma página) si venció o no existe |
+| `GET /api/v1/links/{alias}/qr?size=256&download=false` | PNG del QR (128 a 1024 px). Con `download=true` se descarga como `{alias}.png` |
 
----
+## Compilar y ejecutar
 
-## 🚀 Guía de Trabajo en Simultáneo
+Stack: **Java 25**, Spring Boot 4.1.1, JPA/Hibernate sobre HSQLDB, Gradle 9.8.1. El wrapper está incluido: no hace falta instalar Gradle. Si no hay un JDK 25 instalado, Gradle lo descarga solo la primera vez.
 
-### 1. Clonar el repositorio (para Sofía y Agustín en sus PCs)
+| Acción | Windows | Linux / macOS |
+| :--- | :--- | :--- |
+| Levantar la aplicación | `.\gradlew.bat bootRun` | `./gradlew bootRun` |
+| Compilar y correr los tests | `.\gradlew.bat build` | `./gradlew build` |
+| Tests + cobertura mínima | `.\gradlew.bat check` | `./gradlew check` |
+| Generar el JAR | `.\gradlew.bat bootJar` | `./gradlew bootJar` |
+
+Con la aplicación levantada:
+
+- Página web: http://localhost:8080
+- Documentación de la API (Swagger): http://localhost:8080/swagger-ui.html
+
+Los enlaces se guardan en HSQLDB en modo archivo (`./data/`, ignorado por git) y sobreviven a un reinicio.
+
+`check` falla si la cobertura de líneas de `app.mappings` + `app.service` baja del 70 %. El reporte queda en `build/reports/jacoco/test/html/index.html`.
+
+El JAR queda en `build/libs/shortener.jar` y necesita Java 25 para ejecutarse. Toda la configuración está en `src/main/resources/application.properties`. Para correr en otra máquina solo cambia el dominio con el que se arman los enlaces, con una variable de entorno (ver `.env.example`):
+
 ```bash
-git clone https://github.com/martincrespo77/PP6-TPGrupo2.git
-cd PP6-TPGrupo2
+APP_BASE_URL=http://ip-o-dominio:8080 java -jar shortener.jar
 ```
 
-### 2. Cambiar a la rama personal propia
-- **Martín:**
-  ```bash
-  git checkout dev/martin
-  ```
-- **Sofía:**
-  ```bash
-  git checkout dev/sofia
-  ```
-- **Agustín:**
-  ```bash
-  git checkout dev/agustin
-  ```
+## Extensión para Chrome y Firefox
 
-### 3. Flujo diario de trabajo (en tu propia rama)
-Cada vez que realices cambios en tu código:
-```bash
-# 1. Ver qué archivos se modificaron
-git status
+La carpeta [`browser-extension/`](browser-extension/) es la extensión (Manifest V3, el mismo código para los dos navegadores). Al abrirla muestra la dirección de la pestaña activa; con **ACORTAR** genera el enlace y muestra el QR, los botones para copiar y descargar el QR, y la hora de vencimiento.
 
-# 2. Agregar los cambios al commit
-git add .
+Usa el servidor indicado en `config.js`, que es `http://localhost:8080`: **la aplicación tiene que estar levantada**.
 
-# 3. Guardar el commit con mensaje descriptivo
-git commit -m "feat: descripción del avance"
+**Chrome / Edge**
+1. Abrir `chrome://extensions` (en Edge, `edge://extensions`).
+2. Activar **Modo de desarrollador** (arriba a la derecha).
+3. **Cargar descomprimida** → elegir la carpeta `browser-extension`.
+4. Fijar la extensión con el ícono del rompecabezas, para tenerla a mano.
 
-# 4. Subir a tu rama en GitHub
-git push
+**Firefox**
+1. Abrir `about:debugging#/runtime/this-firefox`.
+2. **Cargar complemento temporal…** → elegir `browser-extension/manifest.json` (o el `.zip`).
+3. Firefox la quita al cerrarse: es una carga temporal porque la extensión no está firmada.
+
+En páginas que no son http/https (por ejemplo `chrome://extensions` o una pestaña nueva) el botón ACORTAR aparece deshabilitado con el aviso "Esta página no se puede acortar (solo http/https)".
+
+Para generar el `.zip` de la extensión en `build/extension/`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\package-extension.ps1
 ```
 
-### 4. Mantener tu rama actualizada con `main`
-Antes de integrar o al comenzar el día, actualiza tu rama personal con los últimos cambios de `main`:
-```bash
-# Estando parado en tu rama personal:
-git fetch origin
-git merge origin/main
-```
-Si hay conflictos, se resuelven en tu rama personal sin afectar `main`.
+## Estructura del código
 
-### 5. Subir tus cambios a la rama `main`
-La mejor práctica es hacerlo mediante **Pull Request (PR)** en GitHub:
-1. Ve a https://github.com/martincrespo77/PP6-TPGrupo2/pulls
-2. Haz clic en **New Pull Request**.
-3. Selecciona base: `main` y compare: tu rama (`dev/martin`, `dev/sofia` o `dev/agustin`).
-4. Revisa los cambios, pide el visto bueno de tus compañeros y presiona **Merge Pull Request**.
+Sigue la estructura del proyecto de referencia de la cátedra (`contexto.md` §8).
 
-#### (Alternativa por consola si no usan PRs):
-```bash
-git checkout main
-git pull origin main
-git merge dev/tunombre
-git push origin main
-git checkout dev/tunombre
+```text
+src/main/java/app
+├── Application.java   arranque, reloj, CORS para la extensión, tarea programada
+├── controller/        endpoints REST y redirección
+├── dto/               entrada y salida JSON
+├── service/           reglas de negocio y consultas JPQL
+├── mappings/          entidad JPA (ShortLink)
+└── exception/         errores de negocio y su respuesta HTTP
+
+src/main/resources/static/   página web (HTML, CSS y JS sin framework)
+src/test/java/app/           tests unitarios y de integración
+browser-extension/           extensión para Chrome y Firefox
 ```

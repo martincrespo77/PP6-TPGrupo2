@@ -1,0 +1,112 @@
+/* Misma estética que la web (src/main/resources/static/styles.css), adaptada a un popup angosto. */
+:root {
+	--ink: #3a4556;
+	--text: #2b3340;
+	--muted: #8a8fa0;
+	--border: #e1e3ea;
+	--accent: #b7a6ee;
+	--accent-dark: #5b4bc4;
+	--link: #5b4bc4;
+	--focus: #b7a6ee;
+	--error: #b3261e;
+	--warning: #8a5300;
+	--success: #1e7d32;
+}
+
+* { box-sizing: border-box; }
+
+/* Las clases con display (p. ej. .icon-button) pisan el atributo hidden si no se fuerza. */
+[hidden] { display: none !important; }
+
+body {
+	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+	color: var(--text);
+	margin: 0;
+	width: 340px;
+	background: linear-gradient(160deg, #f6f4fe 0%, #e8e3fb 100%);
+}
+
+main { padding: 1rem; }
+
+h1 { margin: 0 0 .35rem; font-size: 1.15rem; font-weight: 700; color: var(--ink); }
+
+.page-url {
+	margin: 0 0 .75rem;
+	font-size: .8rem;
+	color: var(--muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+button, .icon-button { font: inherit; cursor: pointer; border-radius: 8px; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+#shorten {
+	width: 100%;
+	padding: .7rem 1rem;
+	border: 0;
+	background: var(--accent);
+	color: var(--ink);
+	font-weight: 700;
+	letter-spacing: .02em;
+}
+
+#shorten:hover:not(:disabled) { background: var(--accent-dark); color: #fff; }
+
+.status { margin: 0; font-size: .85rem; font-weight: 500; }
+.status:not(:empty) { margin-top: .6rem; }
+.status.info { color: var(--muted); }
+.status.error { color: var(--error); }
+.status.warning { color: var(--warning); }
+.status.success { color: var(--success); }
+
+.card {
+	margin-top: .75rem;
+	padding: .75rem;
+	background: #fff;
+	border-radius: 12px;
+	box-shadow: 0 6px 20px rgba(90, 70, 170, .12);
+}
+
+.row { display: flex; gap: .5rem; align-items: center; justify-content: space-between; }
+
+.short-url { font-weight: 500; color: var(--link); word-break: break-all; }
+
+.actions { display: flex; gap: .4rem; flex: none; }
+
+/* Botones de solo ícono: cuadrados, con borde y fondo para que se lean como botones. */
+.icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	background: #fff;
+	color: var(--ink);
+	border: 1px solid var(--border);
+	box-shadow: 0 1px 2px rgba(58, 69, 86, .12);
+	text-decoration: none;
+}
+
+.icon-button:hover:not(:disabled) { background: #f5f3fd; border-color: var(--accent); }
+.icon-button:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+
+.icon-button.dark { background: var(--ink); color: #fff; border-color: var(--ink); }
+.icon-button.dark:hover:not(:disabled) { background: #2b3340; border-color: #2b3340; }
+
+.qr {
+	display: block;
+	margin: .75rem auto .5rem;
+	padding: .35rem;
+	background: #fff;
+	border: 1px solid var(--border);
+	border-radius: 10px;
+}
+
+.muted { color: var(--muted); font-size: .85rem; margin: 0; text-align: center; }
+
+.card.expired .short-url { color: var(--muted); text-decoration: line-through; pointer-events: none; }
+.card.expired .qr { filter: grayscale(1); opacity: .35; }
