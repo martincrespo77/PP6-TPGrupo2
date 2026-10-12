@@ -79,6 +79,26 @@ class WebClientStaticFilesTest {
 	}
 
 	@Test
+	void coloquioIsServedInsteadOfBeingTreatedAsAnAlias() throws Exception {
+		mvc.perform(get("/coloquio"))
+				.andExpect(status().isOk())
+				.andExpect(forwardedUrl("/coloquio.html"));
+	}
+
+	@Test
+	void coloquioGuideLinksEachPieceToAFixedVersionOfTheCodeOnGitHub() throws Exception {
+		assertThat(fetch("/coloquio.html")).contains(
+				"<html lang=\"es\">",
+				"<meta charset=\"UTF-8\">",
+				"https://github.com/martincrespo77/PP6-TPGrupo2/blob/c40fbb01c690bab8524c5cf14bf79ff636de14bb/");
+	}
+
+	@Test
+	void homePageLinksToTheColoquioGuide() throws Exception {
+		assertThat(fetch("/index.html")).contains("href=\"coloquio\"");
+	}
+
+	@Test
 	void extensionIsDownloadableAsAZipThatCallsTheServerItCameFrom() throws Exception {
 		byte[] zip = mvc.perform(get("/descargas/acortador-pp6.zip"))
 				.andExpect(status().isOk())
