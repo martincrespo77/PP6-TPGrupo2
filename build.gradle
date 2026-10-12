@@ -22,7 +22,6 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1'
 	implementation 'com.google.zxing:core:3.5.4'
 	implementation 'com.google.zxing:javase:3.5.4'
@@ -52,13 +51,13 @@ jacocoTestReport {
 	}
 }
 
-// R13: >= 70 % de líneas en dominio + aplicación. Se puede subir con -PcoverageMinimum=0.90.
+// R13: >= 70 % de líneas en entidades + servicios. Se puede subir con -PcoverageMinimum=0.90.
 jacocoTestCoverageVerification {
 	dependsOn test
 	classDirectories.setFrom(files(classDirectories.files.collect {
 		fileTree(it) {
-			include 'ar/edu/undef/fie/pp6/shortener/domain/**'
-			include 'ar/edu/undef/fie/pp6/shortener/application/**'
+			include 'app/mappings/**'
+			include 'app/service/**'
 		}
 	}))
 	violationRules {

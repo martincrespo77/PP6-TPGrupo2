@@ -59,7 +59,7 @@ if [ "`$code" != 200 ]; then
 fi
 echo "`$COMMIT `$TS" > /opt/pp6-shortener/DEPLOYED
 ls -1t "`$JAR".bak-* | tail -n +4 | xargs -r rm -f
-journalctl -u pp6-shortener -n 50 --no-pager -o cat | grep 'Started ShortenerApplication' | tail -1
+journalctl -u pp6-shortener -n 50 --no-pager -o cat | grep 'Started Application' | tail -1
 echo "OK: commit `$COMMIT activo"
 # fin
 "@

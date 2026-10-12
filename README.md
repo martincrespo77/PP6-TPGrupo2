@@ -34,7 +34,7 @@ Stack: **Java 25**, Spring Boot 4.1.1, Gradle 9.8.1 (wrapper incluido: no hace f
 | Generar el JAR | `./gradlew bootJar` → `build/libs/shortener.jar` | `gradlew.bat bootJar` |
 | Cobertura (JaCoCo) | `./gradlew check` → `build/reports/jacoco/test/html/index.html` | `gradlew.bat check` |
 
-`check` falla si la cobertura de líneas de `domain` + `application` baja del 70 % (R13).
+`check` falla si la cobertura de líneas de `app.mappings` + `app.service` baja del 70 % (R13).
 
 La app queda en http://localhost:8080, con HSQLDB en modo archivo (`./data/`, ignorado por git) y Swagger en http://localhost:8080/swagger-ui.html.
 
