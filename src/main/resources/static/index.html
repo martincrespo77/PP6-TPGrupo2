@@ -8,32 +8,48 @@
 </head>
 <body>
 	<main>
-		<h1>Acortador de enlaces</h1>
-		<p class="muted">Pegá una dirección y obtené un enlace corto y su QR. Los enlaces duran 60 minutos.</p>
+		<header class="hero">
+			<h1>Acortador de enlaces</h1>
+			<p class="muted">Pegá una dirección y obtené un enlace corto y su QR. Los enlaces duran 60 minutos.</p>
+		</header>
 
-		<form id="shorten-form" novalidate>
-			<label for="url">Dirección a acortar</label>
-			<div class="row">
-				<input id="url" name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false"
-					placeholder="https://..." required>
-				<button id="shorten" type="submit">ACORTAR</button>
-			</div>
-		</form>
+		<div class="panel">
+			<form id="shorten-form" novalidate>
+				<div class="step">
+					<span class="step-number" aria-hidden="true">1</span>
+					<label for="url">Dirección a acortar</label>
+				</div>
+				<div class="row">
+					<div class="field">
+						<svg class="field-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+							<path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"
+								fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+						<input id="url" name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false"
+							placeholder="https://..." required>
+					</div>
+					<button id="shorten" type="submit">ACORTAR</button>
+				</div>
+			</form>
 
-		<p id="status" class="status" role="status" aria-live="polite"></p>
+			<p id="status" class="status" role="status" aria-live="polite"></p>
 
-		<section id="result" class="card" hidden aria-labelledby="result-title">
-			<h2 id="result-title">Tu enlace corto</h2>
-			<div class="row">
-				<a id="short-url" class="short-url" target="_blank" rel="noopener"></a>
-				<button id="copy" type="button">Copiar</button>
-			</div>
-			<img id="qr" class="qr" width="256" height="256" alt="">
-			<div class="row">
-				<a id="download" class="button secondary">Descargar QR</a>
-			</div>
-			<p id="expires" class="muted"></p>
-		</section>
+			<section id="result" class="result" hidden aria-labelledby="result-title">
+				<div class="step">
+					<span class="step-number" aria-hidden="true">2</span>
+					<h2 id="result-title">Tu enlace corto</h2>
+				</div>
+				<div class="result-box">
+					<a id="short-url" class="short-url" target="_blank" rel="noopener"></a>
+					<div class="actions">
+						<a id="download" class="button secondary">Descargar QR</a>
+						<button id="copy" type="button" class="dark">Copiar</button>
+					</div>
+				</div>
+				<img id="qr" class="qr" width="256" height="256" alt="">
+				<p id="expires" class="muted expires"></p>
+			</section>
+		</div>
 
 		<footer class="muted">
 			Paradigmas de Programación VI – TP Grupo 2 ·

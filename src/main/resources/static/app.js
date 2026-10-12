@@ -100,7 +100,6 @@
 		}
 		if (response.status === 201) {
 			showResult(await response.json());
-			input.value = '';
 		} else if (response.status === 400) {
 			showStatus((await problemDetail(response)) || MESSAGES.unexpected, 'error');
 			input.focus();
