@@ -86,3 +86,6 @@ data/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Salida de compilación del editor (VS Code / Eclipse)
+bin/

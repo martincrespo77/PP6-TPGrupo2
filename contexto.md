@@ -4,11 +4,15 @@
 **Cátedra:** Paradigmas de Programación VI – 5to Año – Ingeniería en Informática (FIE)
 **Equipo:** Martín Crespo (`dev/martin`) · Sofía Ramirez (`dev/sofia`) · Agustín Gimenez (`dev/agustin`)
 **Repositorio:** https://github.com/martincrespo77/PP6-TPGrupo2
-**Versión del documento:** v0.2 – estructura alineada al proyecto de referencia del profesor (11/10/2026). Reemplaza a la v0.1 – consolidación inicial (07/10/2026)
+**Versión del documento:** v0.3 – entrega de la Etapa 1 (12/10/2026). Versiones anteriores: v0.2 – estructura alineada al proyecto de referencia del profesor (11/10/2026); v0.1 – consolidación inicial (07/10/2026)
 
 > **Qué es este documento.** Es la **base única de contexto** del proyecto. Consolida la consigna (`TP_PP6_v1.0.md`), la minuta con las respuestas del cliente y las tres propuestas individuales (`ANALISIS_Y_ESPECIFICACION_ETAPA_1.md` de Martín, `propuesta-etapa1_agus.md` de Agustín y `propuesta-etapa1_sofia.md` de Sofía). Lo leen los integrantes y **cualquier asistente de IA** antes de trabajar. Si algo no está acá, no está decidido.
 
-> **Qué cambió en la v0.2 (rama `dev/sofia`).** El backend se reestructuró con los paquetes del proyecto de referencia del profesor (`app.mappings`, `app.service`, `app.dto`, `app.controller`, `app.exception`) y sin `Repository` ni puertos: ver D47, D31, D33, §8 y §14.1. **El comportamiento externo no cambió**: mismos endpoints, respuestas, documento OpenAPI, web y extensión. Las respuestas del Cliente (§3), las invariantes (§7), el contrato (§10) y los casos de prueba (§15.2) siguen iguales. La versión anterior (arquitectura hexagonal) está en la rama `dev/agustin`. 🟡 A confirmar en grupo cuál de las dos se entrega.
+> **Qué incluye la entrega de la Etapa 1 (rama `main`).** El sistema funcionando (backend, cliente web y tests), la extensión (`browser-extension/`) y este documento. La bitácora con el registro de prompts, los ADR, las evidencias y las propuestas individuales **no forman parte de esta entrega**: el registro de prompts se entrega aparte, en el formato que indique el Cliente. Donde este documento los menciona (§14.3, §15.5, §16, §17) describe la forma de trabajo del equipo, no archivos de este repositorio.
+
+> **Qué cambió en la v0.2.** El backend se reestructuró con los paquetes del proyecto de referencia del profesor (`app.mappings`, `app.service`, `app.dto`, `app.controller`, `app.exception`) y sin `Repository` ni puertos: ver D47, D31, D33, §8 y §14.1. **El comportamiento externo no cambió**: mismos endpoints, respuestas, documento OpenAPI, web y extensión. Las respuestas del Cliente (§3), las invariantes (§7), el contrato (§10) y los casos de prueba (§15.2) siguen iguales. La versión anterior (arquitectura hexagonal) está en la rama `dev/agustin`. El grupo decidió entregar esta versión (12/10/2026).
+
+> **Qué cambió en la v0.3.** La web y la extensión tienen una estética nueva (mismos textos y estados). En la web, la dirección original queda en el campo después de acortar. La extensión ya no acorta al abrirse: lo hace al apretar ACORTAR (D43), y Copiar y Descargar QR son botones de ícono. La extensión apunta a `http://localhost:8080` (D44).
 
 ---
 
@@ -199,7 +203,7 @@ Obtenidas en la elucidación (minuta registrada por Sofía). **Tienen prioridad 
 | D40 | Botón **Copiar** manual en web y extensión; sin copia automática | C11 | [M][A][S][C11] |
 | D41 | Si el enlace vence con la pantalla abierta, la tarjeta pasa a estado **"vencido"** (enlace y QR deshabilitados) | Deja claro que el enlace ya no sirve | [S] |
 | D42 | Extensión **WebExtension Manifest V3**, un solo código para Chrome y Firefox (`browser_specific_settings.gecko`) | Un solo mantenimiento | [M][A][S] |
-| D43 | Al abrir el popup se acorta **la pestaña activa** sin pegar nada. En pestañas no http/https: botón **ACORTAR deshabilitado** con el aviso "Esta página no se puede acortar (solo http/https)" | C10 | [S][C10] |
+| D43 | Al abrir el popup se muestra la dirección de **la pestaña activa**, sin pegar nada, y se acorta **al apretar ACORTAR** (no automáticamente al abrir). En pestañas no http/https: botón **ACORTAR deshabilitado** con el aviso "Esta página no se puede acortar (solo http/https)" | C10. Revisada en la v0.3: acortar al abrir creaba enlaces que nadie iba a usar cuando alguien abría la extensión solo para ver qué era. Costo: es un clic más que el "con solo tocarlo" de la consigna | [S][C10] |
 | D44 | La URL de la API de la extensión es una **constante en `config.js`** (`http://localhost:8080`), sin página de opciones | C10 ("no configurable por ahora"). Al pasar al VPS se cambia y se reempaqueta | [S][C10] |
 | D45 | CORS habilitado en `/api/**` para orígenes `chrome-extension://…` y `moz-extension://…` | La extensión llama desde otro origen | [M][A][S] |
 | D46 | Navegadores: Chrome y Firefox actuales de escritorio | C16 (los define el equipo) | [S] |
@@ -208,7 +212,7 @@ Obtenidas en la elucidación (minuta registrada por Sofía). **Tienen prioridad 
 
 | # | Decisión | Motivo | Origen |
 |---|---|---|---|
-| D47 | **Estructura de paquetes del proyecto de referencia del profesor**: `app.mappings` (entidades), `app.service` (reglas de negocio y JPQL), `app.dto` (entrada y salida HTTP), `app.controller` (endpoints), `app.exception` (excepciones y manejador HTTP). Inyección con `@Autowired` sobre el campo. Sin interfaces intermedias | Es la estructura que el profesor enseña y va a reconocer; para una sola tabla, la arquitectura hexagonal de la v0.1 era más ceremonia de la necesaria (46 archivos contra 15). Costo: un cambio futuro se hace modificando una clase en lugar de agregando una implementación (§14.1). 🟡 A confirmar en grupo | [S] (v0.2) |
+| D47 | **Estructura de paquetes del proyecto de referencia del profesor**: `app.mappings` (entidades), `app.service` (reglas de negocio y JPQL), `app.dto` (entrada y salida HTTP), `app.controller` (endpoints), `app.exception` (excepciones y manejador HTTP). Inyección con `@Autowired` sobre el campo. Sin interfaces intermedias | Es la estructura que el profesor enseña y va a reconocer; para una sola tabla, la arquitectura hexagonal de la v0.1 era más ceremonia de la necesaria (46 archivos contra 15). Costo: un cambio futuro se hace modificando una clase en lugar de agregando una implementación (§14.1). Confirmada por el grupo el 12/10/2026 | [S] (v0.2) |
 
 ---
 
@@ -245,9 +249,9 @@ Las filas marcadas 🟡 son recomendaciones con las que el equipo **avanza** has
 
 | # | Pregunta | Suposición por defecto |
 |---|---|---|
-| Q1 | ¿Cuál es el formato de entrega de la Etapa 1? | Repositorio git, `.zip` de la extensión y carpeta `docs/` con la bitácora y el registro de prompts |
+| Q1 | ¿Cuál es el formato de entrega de la Etapa 1? | Repositorio git con el sistema, la extensión y este documento. El registro de prompts se entrega aparte, en el formato que pida el Cliente |
 | Q2 | ¿Hay una cobertura mínima de pruebas esperada? | ≥ 70 % en `app.mappings` + `app.service` |
-| Q3 | ¿Hay un formato específico para el registro de prompts? | `docs/BITACORA.md`, una entrada por paso con los prompts usados (§17) |
+| Q3 | ¿Hay un formato específico para el registro de prompts? | Sí: el Cliente va a pedir una documentación específica. Mientras tanto el equipo lo lleva en su bitácora, una entrada por paso (§17), fuera de esta entrega |
 | Q4 | ¿Alcanza con entregar la extensión sin firmar, cargada en modo desarrollador? (En Firefox la carga es temporal y se pierde al reiniciar el navegador) | Sí. El README explica cómo cargarla en ambos navegadores |
 | Q5 | ¿Valida las decisiones propias D5 (borrado con cron), D7 (`404` único) y D20 (`302`)? | Se presentan como supuestos en la minuta y se pueden revisar |
 | Q6 | "Página informativa **con redirección** a nuestra página" (C6): ¿alcanza con un botón, o debe redirigir sola después de unos segundos? | Botón "Crear un enlace nuevo"; sin redirección automática |
@@ -331,7 +335,7 @@ app
 
 src/main/resources/static/   index.html, app.js, styles.css, enlace-no-disponible.html
 browser-extension/           manifest.json, popup.html, popup.js, popup.css, config.js
-docs/                        BITACORA.md, adr/, diagramas/, evidencias/, propuestas/
+scripts/                     package-extension.ps1 (arma el .zip de la extensión)
 ```
 
 > **Nota sobre `LinkService.shorten`:** no usa `@Transactional` sino `TransactionTemplate`, porque cada intento de alias necesita su propia transacción: después de una violación de la PK la sesión de Hibernate queda inutilizable (I2). El borrado de vencidos sí usa `@Transactional`.
@@ -497,11 +501,11 @@ Se documenta con **springdoc-openapi / Swagger UI**. Fechas en **UTC, ISO-8601**
 ### 11.2. Extensión Chrome y Firefox (Manifest V3)
 
 - `manifest.json` Manifest V3 (`action`, `permissions: ["activeTab"]`, `host_permissions` hacia el backend) con `browser_specific_settings.gecko`. Un solo código.
-- Al abrir el popup toma la URL de la pestaña activa (`tabs.query({ active: true, currentWindow: true })`):
-  - si es `http`/`https`, llama a `POST /api/v1/links` y muestra enlace, QR, hora de vencimiento, **Copiar** y **Descargar QR**, con el mismo estado "vencido" que la web;
+- Al abrir el popup toma la URL de la pestaña activa (`tabs.query({ active: true, currentWindow: true })`) y la muestra:
+  - si es `http`/`https`, habilita **ACORTAR**; al apretarlo llama a `POST /api/v1/links` y muestra enlace, QR, hora de vencimiento y los botones de ícono **Copiar** y **Descargar QR**, con el mismo estado "vencido" que la web (D43);
   - si no lo es (`chrome://`, `about:`, nueva pestaña), muestra **ACORTAR** deshabilitado y el aviso "Esta página no se puede acortar (solo http/https)".
 - La URL de la API es una constante en `config.js` (`http://localhost:8080`).
-- Se instala en **modo desarrollador** (Chrome) y como **complemento temporal** (Firefox). Se entrega como carpeta y `.zip`.
+- Se instala en **modo desarrollador** (Chrome) y como **complemento temporal** (Firefox). Se entrega como carpeta; el `.zip` se genera con `scripts\package-extension.ps1`.
 
 ---
 
@@ -612,9 +616,9 @@ Se registra un **ADR** (`docs/adr/NNNN-slug.md`: contexto, decisión, alternativ
 - **ADR-0005:** HSQLDB en modo archivo, cambiable por configuración (D29).
 - **ADR-0006:** `404` único para vencido e inexistente (D7).
 
-Los ADR-0001 a 0006 siguen vigentes: ninguno trata sobre la estructura de paquetes. Los nombres de clases que mencionan son los de la v0.1.
+- **ADR-0007:** estructura de paquetes del proyecto de referencia del profesor, sin `Repository` ni puertos (D47, D31, D33).
 
-- **ADR-0007:** estructura de paquetes del proyecto de referencia del profesor, sin `Repository` ni puertos (D47, D31, D33). Estado: propuesta, 🟡 a confirmar en grupo.
+Los archivos de los ADR no forman parte de la entrega de la Etapa 1: las decisiones y sus motivos están resumidos en §4.
 
 ---
 
@@ -728,7 +732,7 @@ Cada ID se mapea **1 a 1** con un test `tcNN_descripcion`, agrupado por requisit
 9. Ante una colisión se genera otro alias; superado el tope de intentos, 503.
 10. La API nunca devuelve entidades JPA ni lista enlaces.
 11. Tras reiniciar el servicio, los enlaces vigentes siguen funcionando.
-12. La extensión, cargada en Chrome y en Firefox, acorta la pestaña activa con un clic y muestra el enlace, el QR, Copiar y la hora de vencimiento; en una pestaña no http/https muestra el botón deshabilitado con el aviso.
+12. La extensión, cargada en Chrome y en Firefox, acorta la pestaña activa al apretar ACORTAR y muestra el enlace, el QR, Copiar y la hora de vencimiento; en una pestaña no http/https muestra el botón deshabilitado con el aviso.
 13. La web muestra todos los estados de §11.1, incluido "vencido".
 
 ### 15.4. Pruebas de mutación de las invariantes
@@ -745,7 +749,7 @@ En cada paso que toque una invariante se **rompe la regla a propósito**, se cor
 | I4 | Armar `shortUrl` desde el request | TC-33 |
 | I6 | `expiresAt <= now` → sin condición, o `>=` | TC-41, TC-42 |
 
-Si una mutación sobrevive, la regla **no está protegida**, diga lo que diga la cobertura. Las mutaciones están automatizadas en `scripts/mutation-test.ps1`.
+Si una mutación sobrevive, la regla **no está protegida**, diga lo que diga la cobertura.
 
 ### 15.5. Definición de "terminado"
 
