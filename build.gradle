@@ -78,3 +78,19 @@ tasks.named('check') {
 bootJar {
 	archiveFileName = 'shortener.jar'
 }
+
+// Se arma en cada build para que nunca quede desactualizada respecto de browser-extension/.
+// ExtensionController la sirve en /descargas/acortador-pp6.zip apuntando al servidor que la entrega.
+def extensionZip = tasks.register('extensionZip', Zip) {
+	from 'browser-extension'
+	archiveFileName = 'acortador-pp6.zip'
+	destinationDirectory = layout.buildDirectory.dir('extension')
+	preserveFileTimestamps = false
+	reproducibleFileOrder = true
+}
+
+tasks.named('processResources') {
+	from(extensionZip) {
+		into 'extension'
+	}
+}

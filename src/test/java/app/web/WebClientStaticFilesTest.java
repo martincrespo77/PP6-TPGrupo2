@@ -1,15 +1,23 @@
 package app.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import app.support.IntegrationTest;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Lo verificable sin navegador del cliente web (§11.1). Los estados se prueban en el navegador. */
@@ -63,5 +71,54 @@ class WebClientStaticFilesTest {
 	@Test
 	void stylesheetIsServedAndHiddenWinsOverDisplayClasses() throws Exception {
 		assertThat(fetch("/styles.css")).contains("[hidden] { display: none !important; }");
+	}
+
+	@Test
+	void homePageLinksToTheExtensionDownload() throws Exception {
+		assertThat(fetch("/index.html")).contains("href=\"descargas/acortador-pp6.zip\"");
+	}
+
+	@Test
+	void coloquioIsServedInsteadOfBeingTreatedAsAnAlias() throws Exception {
+		mvc.perform(get("/coloquio"))
+				.andExpect(status().isOk())
+				.andExpect(forwardedUrl("/coloquio.html"));
+	}
+
+	@Test
+	void coloquioGuideLinksEachPieceToAFixedVersionOfTheCodeOnGitHub() throws Exception {
+		assertThat(fetch("/coloquio.html")).contains(
+				"<html lang=\"es\">",
+				"<meta charset=\"UTF-8\">",
+				"https://github.com/martincrespo77/PP6-TPGrupo2/blob/c40fbb01c690bab8524c5cf14bf79ff636de14bb/");
+	}
+
+	@Test
+	void homePageLinksToTheColoquioGuide() throws Exception {
+		assertThat(fetch("/index.html")).contains("href=\"coloquio\"");
+	}
+
+	@Test
+	void extensionIsDownloadableAsAZipThatCallsTheServerItCameFrom() throws Exception {
+		byte[] zip = mvc.perform(get("/descargas/acortador-pp6.zip"))
+				.andExpect(status().isOk())
+				.andExpect(header().string(HttpHeaders.CONTENT_TYPE, "application/zip"))
+				.andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("acortador-pp6.zip")))
+				.andReturn().getResponse().getContentAsByteArray();
+
+		List<String> entries = new ArrayList<>();
+		String config = null;
+		try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
+			for (ZipEntry entry = in.getNextEntry(); entry != null; entry = in.getNextEntry()) {
+				entries.add(entry.getName());
+				if (entry.getName().equals("config.js")) {
+					config = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+				}
+			}
+		}
+		assertThat(entries)
+				.contains("manifest.json", "config.js", "popup.html", "popup.js", "popup.css")
+				.noneMatch(name -> name.contains("\\"));
+		assertThat(config).contains("apiBaseUrl: 'https://sho.rt'");
 	}
 }

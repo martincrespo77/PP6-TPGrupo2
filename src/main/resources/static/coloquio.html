@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Cómo está hecho – Acortador PP6</title>
+	<style>
+		:root {
+			--bg: #f5f7fb; --card: #fff; --ink: #1d2433; --muted: #5b6577; --line: #d8deea;
+			--accent: #2457d6; --accent-soft: #e8eefc; --ok: #1f7a4d; --warn: #9a5b00; --warn-soft: #fff4e0;
+			--client: #e9f7ef; --http: #e8eefc; --service: #fdf0e6; --data: #f1ebfb; --config: #eef1f5;
+		}
+		* { box-sizing: border-box; }
+		body { margin: 0; font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: var(--bg); }
+		main { max-width: 1340px; margin: 0 auto; padding: 24px 20px 64px; }
+		h1 { font-size: 2rem; margin: 0 0 4px; }
+		h2 { font-size: 1.45rem; margin: 0 0 12px; }
+		h3 { font-size: 1.1rem; margin: 18px 0 6px; }
+		a { color: var(--accent); }
+		code { font: 0.9em ui-monospace, SFMono-Regular, Consolas, monospace; background: #eef1f6; padding: 1px 5px; border-radius: 4px; }
+		.muted { color: var(--muted); }
+		.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; margin: 18px 0; }
+		nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+		nav.toc a { text-decoration: none; background: var(--accent-soft); padding: 6px 12px; border-radius: 999px; font-size: 0.92rem; }
+		.callout { background: var(--warn-soft); border-left: 4px solid var(--warn); padding: 12px 16px; border-radius: 8px; }
+		.tag { display: inline-block; font-size: 0.78rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; margin: 0 4px 4px 0; background: #eef1f6; color: var(--muted); }
+		.tag.c { background: #e3f4ea; color: var(--ok); }
+		.tag.d { background: var(--accent-soft); color: var(--accent); }
+		.code-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-size: 0.88rem; font-weight: 600;
+			background: #1d2433; color: #fff; padding: 5px 11px; border-radius: 8px; margin: 4px 6px 0 0; }
+		.code-link::before { content: "</>"; font: 600 0.8rem ui-monospace, Consolas, monospace; opacity: 0.75; }
+		.code-link:hover { background: var(--accent); }
+
+		/* Diagrama */
+		.diagram-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+		.diagram { position: relative; padding: 4px 0; }
+		.diagram svg { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+		.layer { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; padding: 26px 10px 14px; margin-bottom: 26px; border-radius: 12px; border: 1px dashed var(--line); }
+		.layer-name { position: absolute; top: 6px; left: 12px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+		.layer.client { background: var(--client); } .layer.http { background: var(--http); } .layer.service { background: var(--service); }
+		.layer.data { background: var(--data); } .layer.config { background: var(--config); }
+		.uml { position: relative; z-index: 2; width: 184px; background: #fff; border: 1.5px solid #9aa6bd; border-radius: 6px; cursor: pointer; text-align: left; padding: 0; font: inherit; color: inherit; }
+		.uml:hover, .uml:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+		.uml.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(36, 87, 214, 0.35); }
+		.uml .head { padding: 6px 8px; border-bottom: 1.5px solid #9aa6bd; text-align: center; }
+		.uml .stereo { display: block; font-size: 0.72rem; color: var(--muted); }
+		.uml .name { display: block; font-weight: 700; font-size: 0.95rem; }
+		.uml ul { list-style: none; margin: 0; padding: 6px 8px; overflow-wrap: anywhere; font: 0.74rem/1.45 ui-monospace, Consolas, monospace; color: #3a4357; }
+		.edge { stroke: #8a94a8; stroke-width: 1.6; fill: none; }
+		.edge.dashed { stroke-dasharray: 5 4; }
+		.edge.hl { stroke: var(--accent); stroke-width: 2.6; }
+		.edge-label { font: 600 10px system-ui, sans-serif; fill: #5b6577; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+		.edge-label.hl { fill: var(--accent); }
+		.detail { position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow: auto; }
+		.detail h3 { margin-top: 0; font-size: 1.25rem; }
+		.detail dt { font-weight: 700; margin-top: 12px; }
+		.detail dd { margin: 2px 0 0; }
+		.legend { font-size: 0.85rem; }
+
+		/* Recorridos */
+		.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+		.tabs button { font: inherit; font-weight: 600; border: 1px solid var(--line); background: #fff; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+		.tabs button[aria-selected="true"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+		ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+		ol.steps > li { counter-increment: s; position: relative; padding: 10px 0 12px 46px; border-left: 2px solid var(--line); margin-left: 16px; }
+		ol.steps > li::before { content: counter(s); position: absolute; left: -16px; top: 8px; width: 30px; height: 30px; border-radius: 50%;
+			background: var(--accent); color: #fff; font-weight: 700; display: grid; place-items: center; }
+		ol.steps > li:last-child { border-left-color: transparent; }
+
+		.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+		.card { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: #fff; }
+		.card h3 { margin-top: 0; }
+		.card .alt { font-size: 0.9rem; color: var(--muted); }
+		details.qa { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 8px 0; background: #fff; }
+		details.qa summary { cursor: pointer; font-weight: 600; }
+		details.qa[open] summary { margin-bottom: 6px; }
+		table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+		th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+		th { background: #f0f3f9; }
+
+		@media (max-width: 1300px) {
+			.diagram-wrap { grid-template-columns: 1fr; }
+			.detail { position: static; max-height: none; }
+		}
+	</style>
+</head>
+<body>
+<main>
+	<header class="panel">
+		<p class="muted" style="margin:0">Paradigmas de Programación VI · TP Grupo 2 · Etapa 1</p>
+		<h1>Cómo está hecho el acortador</h1>
+		<p>Guía para explicar el código: qué hace cada pieza, por qué está así y dónde está. Cada botón
+			<span class="code-link" style="pointer-events:none">Ver código</span> abre el archivo en GitHub, en las líneas exactas.</p>
+		<p class="muted">Etiquetas de origen: <span class="tag c">C#</span> lo pidió el Cliente en la elucidación ·
+			<span class="tag d">D#</span> decisión del equipo (las dos están en <code>contexto.md</code>) ·
+			<span class="tag">Consigna</span> está en <code>TP_PP6_v1.0.md</code>.</p>
+		<nav class="toc" aria-label="Secciones">
+			<a href="#resumen">Resumen en 2 minutos</a>
+			<a href="#diagrama">Diagrama de clases</a>
+			<a href="#recorridos">Recorridos paso a paso</a>
+			<a href="#decisiones">Por qué usamos esto</a>
+			<a href="#ia">Cómo controlamos a la IA</a>
+			<a href="#debilidades">Lo que hay que decir antes</a>
+			<a href="#preguntas">Preguntas probables</a>
+			<a href="/">Volver al acortador</a>
+		</nav>
+	</header>
+
+	<section id="resumen" class="panel">
+		<h2>Resumen en 2 minutos</h2>
+		<p>Si el profe dice "cuéntenme el proyecto", esto se puede decir de corrido:</p>
+		<ol>
+			<li><strong>Qué es:</strong> un servicio que recibe una URL larga y devuelve una corta (<code>/k3m9x</code>) con su QR. El enlace vale 60 minutos; después responde 404 y el alias puede reasignarse.</li>
+			<li><strong>Cómo está armado:</strong> un backend Spring Boot con una API REST y tres clientes: la página web, la extensión de Chrome/Firefox y cualquier navegador que abre el enlace corto.</li>
+			<li><strong>Capas:</strong> los <em>controladores</em> solo traducen HTTP; los <em>servicios</em> tienen las reglas (validar, generar alias, vencer, QR); la <em>entidad</em> <code>ShortLink</code> se guarda con JPA/Hibernate en HSQLDB.</li>
+			<li><strong>La regla central:</strong> el vencimiento se evalúa <em>cada vez que se lee</em> (<code>isExpired(now)</code>), así un enlace vencido nunca redirige aunque la limpieza todavía no lo haya borrado.</li>
+			<li><strong>Cómo sabemos que anda:</strong> más de 110 tests (unitarios y de integración con MockMvc), cobertura mínima del 70 % en servicios y entidades, y el sistema corriendo en <code>paradigmas6.agustingimenez.ar</code>.</li>
+		</ol>
+	</section>
+
+	<section id="diagrama" class="panel">
+		<h2>Diagrama de clases</h2>
+		<p class="muted legend">Hacé clic en una clase para ver qué hace, por qué está así y el código. Las flechas van de quien <em>usa</em> a quien <em>es usado</em>; la punteada significa "atiende los errores de".</p>
+		<div class="diagram-wrap">
+			<div class="diagram" id="diagram">
+				<svg id="edges" aria-hidden="true">
+					<defs>
+						<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+							<path d="M0 0 L10 5 L0 10 z" fill="#8a94a8"/>
+						</marker>
+						<marker id="arrow-hl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+							<path d="M0 0 L10 5 L0 10 z" fill="#2457d6"/>
+						</marker>
+					</defs>
+				</svg>
+				<div class="layer client" data-layer="Clientes (navegador)"></div>
+				<div class="layer http" data-layer="Controladores · traducen HTTP"></div>
+				<div class="layer service" data-layer="Servicios · reglas de negocio"></div>
+				<div class="layer data" data-layer="Modelo, validación y alias"></div>
+				<div class="layer config" data-layer="Base de datos y arranque"></div>
+			</div>
+			<aside class="panel detail" id="detail" aria-live="polite">
+				<h3>Elegí una clase</h3>
+				<p class="muted">Sugerencia para el coloquio: empezá por <strong>LinkController</strong>, seguí con <strong>LinkService</strong> y terminá en <strong>ShortLink</strong>. Es el mismo camino que recorre un pedido.</p>
+			</aside>
+		</div>
+	</section>
+
+	<section id="recorridos" class="panel">
+		<h2>Recorridos paso a paso</h2>
+		<p class="muted">La mejor forma de explicar el backend es seguir un pedido de punta a punta.</p>
+		<div class="tabs" role="tablist">
+			<button role="tab" aria-selected="true" data-tab="post">Crear un enlace (POST)</button>
+			<button role="tab" aria-selected="false" data-tab="get">Abrir un enlace (GET)</button>
+			<button role="tab" aria-selected="false" data-tab="qr">Pedir el QR</button>
+			<button role="tab" aria-selected="false" data-tab="cron">Limpieza diaria</button>
+			<button role="tab" aria-selected="false" data-tab="ext">Extensión</button>
+		</div>
+
+		<div role="tabpanel" data-panel="post">
+			<ol class="steps">
+				<li>La web arma un JSON <code>{"url": "https://..."}</code> y hace <code>fetch</code> a <code>POST /api/v1/links</code> con ruta relativa: funciona igual en local y en el VPS.
+					<br><a class="code-link" data-code="src/main/resources/static/app.js#L89-L111">app.js · shorten</a></li>
+				<li><code>LinkController.shorten</code> recibe el record <code>ShortenRequest</code> y delega en el servicio. No tiene lógica: si mañana hay otra interfaz, la regla no se duplica.
+					<br><a class="code-link" data-code="src/main/java/app/controller/LinkController.java#L47-L51">LinkController.shorten</a></li>
+				<li><code>UrlValidator.validate</code> revisa vacío, largo (2048), esquema <code>http/https</code> y host. Si falla tira <code>InvalidUrlException</code> con un mensaje para el usuario.
+					<br><a class="code-link" data-code="src/main/java/app/service/UrlValidator.java#L29-L54">UrlValidator</a></li>
+				<li><code>LinkService.shorten</code> pide un alias a <code>AliasGenerator</code> (5 caracteres al azar con <code>SecureRandom</code>) y prueba hasta 10 veces.
+					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L58-L78">LinkService.shorten</a></li>
+				<li>Cada intento corre en <strong>su propia transacción</strong> (<code>TransactionTemplate</code>). <code>tryCreate</code> busca el alias: si está vigente, devuelve <code>null</code> y se prueba otro; si está vencido, lo borra y lo reasigna en la misma transacción.
+					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L81-L96">LinkService.tryCreate</a></li>
+				<li><code>em.persist</code> + <code>em.flush</code> guardan el <code>ShortLink</code>. El alias es la clave primaria: si dos pedidos simultáneos sacan el mismo, la base rechaza al segundo y ese reintenta.
+					<br><a class="code-link" data-code="src/main/java/app/mappings/ShortLink.java#L10-L28">ShortLink (@Entity)</a></li>
+				<li>Se arma la respuesta <code>ShortLinkResponse</code> (nunca se devuelve la entidad) con <code>shortUrl</code>, <code>qrUrl</code> y <code>secondsRemaining</code> redondeado hacia arriba.
+					<br><a class="code-link" data-code="src/main/java/app/dto/ShortLinkResponse.java#L17-L29">ShortLinkResponse.from</a></li>
+				<li>El controlador responde <strong>201 Created</strong> con header <code>Location</code>. Si algo falló, <code>GlobalExceptionHandler</code> lo convierte en 400 o 503 con formato ProblemDetail.
+					<br><a class="code-link" data-code="src/main/java/app/exception/GlobalExceptionHandler.java#L19-L53">GlobalExceptionHandler</a></li>
+				<li>La web muestra el enlace, el QR y programa un temporizador con <code>secondsRemaining</code> para marcarlo como vencido.
+					<br><a class="code-link" data-code="src/main/resources/static/app.js#L45-L66">app.js · showResult</a></li>
+			</ol>
+		</div>
+
+		<div role="tabpanel" data-panel="get" hidden>
+			<ol class="steps">
+				<li>Alguien abre <code>https://paradigmas6.agustingimenez.ar/k3m9x</code> (o escanea el QR).</li>
+				<li><code>RedirectController</code> atiende <code>/{alias}</code> solo si son 1 a 16 letras o dígitos. Por eso no choca con <code>/api/**</code> ni con <code>/app.js</code> (tiene punto).
+					<br><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L19-L35">RedirectController</a></li>
+				<li><code>LinkService.findLive</code> pasa el alias a minúsculas, lo busca con <code>em.find</code> y lo filtra con <code>isExpired(now)</code>.
+					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L113-L122">LinkService.findLive</a></li>
+				<li><code>ShortLink.isExpired</code>: vigente en <code>[createdAt, expiresAt)</code>. En el minuto 60:00.000 exacto ya venció.
+					<br><a class="code-link" data-code="src/main/java/app/mappings/ShortLink.java#L41-L44">ShortLink.isExpired</a></li>
+				<li>Si está vigente: <strong>302 Found</strong> + <code>Location</code> + <code>Cache-Control: no-store</code>. Si no: <strong>404</strong> con la página "Este enlace expiró o no existe".
+					<br><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L34-L45">redirect()</a></li>
+			</ol>
+		</div>
+
+		<div role="tabpanel" data-panel="qr" hidden>
+			<ol class="steps">
+				<li>La web y la extensión ponen en un <code>&lt;img&gt;</code> la <code>qrUrl</code> que vino en la respuesta: <code>/api/v1/links/{alias}/qr</code>.</li>
+				<li><code>LinkController.qr</code> valida el tamaño (128 a 1024) y, con <code>?download=true</code>, agrega <code>Content-Disposition</code> para descargar <code>{alias}.png</code>.
+					<br><a class="code-link" data-code="src/main/java/app/controller/LinkController.java#L60-L78">LinkController.qr</a></li>
+				<li><code>QrService.qrFor</code> usa la misma regla <code>findLive</code>: un enlace vencido no tiene QR (404).
+					<br><a class="code-link" data-code="src/main/java/app/service/QrService.java#L41-L50">QrService.qrFor</a></li>
+				<li>ZXing genera el PNG con corrección de errores M (~15 %) y margen 2. El contenido es siempre la URL <em>corta</em>, armada con <code>app.base-url</code>, nunca con datos del pedido.
+					<br><a class="code-link" data-code="src/main/java/app/service/QrService.java#L29-L64">QrService.generatePng</a></li>
+			</ol>
+		</div>
+
+		<div role="tabpanel" data-panel="cron" hidden>
+			<ol class="steps">
+				<li><code>@EnableScheduling</code> en <code>Application</code> activa las tareas programadas.
+					<br><a class="code-link" data-code="src/main/java/app/Application.java#L16-L18">Application</a></li>
+				<li>Todos los días a las 3:00 (<code>app.cleanup.cron=0 0 3 * * *</code>) corre <code>purgeExpired</code>: un <code>delete</code> HQL de los vencidos.
+					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L124-L138">LinkService.purgeExpired</a>
+					<a class="code-link" data-code="src/main/resources/application.properties#L13">cron</a></li>
+				<li>Importante: la limpieza <strong>solo libera espacio</strong>. Que un vencido no redirija ya lo garantiza <code>findLive</code> en cada lectura.</li>
+			</ol>
+		</div>
+
+		<div role="tabpanel" data-panel="ext" hidden>
+			<ol class="steps">
+				<li>La web ofrece el zip en <code>/descargas/acortador-pp6.zip</code>. Gradle lo arma en cada build desde <code>browser-extension/</code>.
+					<br><a class="code-link" data-code="build.gradle#L82-L96">build.gradle · extensionZip</a></li>
+				<li><code>ExtensionController</code> reescribe <code>config.js</code> dentro del zip con <code>app.base-url</code>: la extensión bajada del VPS llama al VPS, la bajada en local llama a localhost.
+					<br><a class="code-link" data-code="src/main/java/app/controller/ExtensionController.java#L35-L67">ExtensionController</a></li>
+				<li>El popup lee la pestaña activa con el permiso <code>activeTab</code>. Si no es http/https, deshabilita el botón con un aviso (C10).
+					<br><a class="code-link" data-code="browser-extension/popup.js#L121-L136">popup.js · init</a></li>
+				<li>Al tocar ACORTAR llama a la misma API. Como viene de otro origen (<code>chrome-extension://</code>), el backend habilita CORS solo para <code>/api/**</code> y solo para extensiones.
+					<br><a class="code-link" data-code="browser-extension/popup.js#L92-L119">popup.js · shorten</a>
+					<a class="code-link" data-code="src/main/java/app/Application.java#L35-L47">CORS</a></li>
+			</ol>
+		</div>
+	</section>
+
+	<section id="decisiones" class="panel">
+		<h2>Por qué usamos esto</h2>
+		<div class="grid2">
+			<div class="card"><h3>Spring Boot + JPA/Hibernate</h3>
+				<p>Lo exige la consigna. Usamos <code>EntityManager</code> directo en el servicio, como en el proyecto del profe: <code>persist</code>, <code>find</code>, <code>remove</code> y un <code>delete</code> HQL.</p>
+				<p class="alt">Alternativa: repositorios de Spring Data. Ocultan las consultas; con <code>EntityManager</code> se ve qué hace cada operación.</p>
+				<span class="tag">Consigna</span><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L29-L30">EntityManager</a></div>
+			<div class="card"><h3>HSQLDB en modo archivo</h3>
+				<p>Base relacional embebida: no hay que instalar nada y los datos sobreviven a un reinicio (<code>./data/shortener</code>). Es el motor que usa la cátedra.</p>
+				<p class="alt">Alternativa: PostgreSQL. Más real, pero obliga a instalar o usar Docker para correr y testear.</p>
+				<span class="tag c">C13</span><span class="tag c">C16</span><a class="code-link" data-code="src/main/resources/application.properties#L15-L19">datasource</a></div>
+			<div class="card"><h3>Alias de 5 caracteres al azar</h3>
+				<p>Alfabeto de 31 símbolos sin <code>0 o 1 l i</code> (se confunden al dictarlos): 31⁵ ≈ 28,6 millones de combinaciones. Al azar con <code>SecureRandom</code>, para que no se puedan adivinar los enlaces de otros.</p>
+				<p class="alt">Alternativa: secuencial (<code>/1</code>, <code>/2</code>…). Más corto, pero cualquiera recorre <code>/1…/1000</code> y ve carpetas de Drive ajenas.</p>
+				<span class="tag c">C2</span><span class="tag d">D8</span><a class="code-link" data-code="src/main/resources/application.properties#L8-L11">app.alias.*</a></div>
+			<div class="card"><h3>Vencimiento evaluado al leer</h3>
+				<p><code>isExpired(now)</code> se pregunta en cada redirección y en cada QR. El reloj (<code>Clock</code>) se inyecta, así los tests "adelantan el tiempo" sin esperar 60 minutos.</p>
+				<p class="alt">Alternativa: que solo una tarea programada borre vencidos. Entre dos corridas, un vencido seguiría redirigiendo.</p>
+				<span class="tag c">C5</span><span class="tag d">D2</span><a class="code-link" data-code="src/main/java/app/Application.java#L26-L33">Clock</a></div>
+			<div class="card"><h3>Alias como clave primaria + <code>persist</code></h3>
+				<p>La base garantiza que no haya dos enlaces con el mismo alias, aun con pedidos simultáneos. <code>persist</code> nunca sobrescribe; <code>merge</code> pisaría en silencio un enlace vigente.</p>
+				<p class="alt">Por eso cada intento va en su transacción: tras un error de clave, la sesión de Hibernate queda inutilizable.</p>
+				<span class="tag d">D6</span><span class="tag d">D11</span><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L54-L96">reintentos</a></div>
+			<div class="card"><h3>302 y nunca 301</h3>
+				<p>Un 301 es "permanente": el navegador lo guarda en caché y seguiría redirigiendo después del vencimiento. Además mandamos <code>Cache-Control: no-store</code>.</p>
+				<p class="alt">307 no aporta nada: la redirección siempre es un GET.</p>
+				<span class="tag d">D20</span><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L36-L40">302</a></div>
+			<div class="card"><h3>QR generado en el backend (ZXing)</h3>
+				<p>Un solo lugar que genera y prueba el QR, y lo usan la web y la extensión. El test lo decodifica para comprobar que contiene la URL corta.</p>
+				<p class="alt">Alternativa: librería JavaScript en cada cliente. Duplica código en dos lugares que hay que probar.</p>
+				<span class="tag c">C11</span><span class="tag d">D21</span><a class="code-link" data-code="src/main/java/app/service/QrService.java#L21-L50">QrService</a></div>
+			<div class="card"><h3>Errores con ProblemDetail (RFC 7807)</h3>
+				<p>Todas las respuestas de error de la API tienen la misma forma (<code>title</code>, <code>status</code>, <code>detail</code>). El cliente muestra <code>detail</code> tal cual.</p>
+				<p class="alt">El handler se limita a <code>LinkController</code> para que el 404 de la redirección siga siendo una página HTML.</p>
+				<span class="tag d">D26</span><a class="code-link" data-code="src/main/java/app/exception/GlobalExceptionHandler.java#L15-L28">handler</a></div>
+			<div class="card"><h3>DTOs como <code>record</code></h3>
+				<p><code>ShortenRequest</code> y <code>ShortLinkResponse</code> separan el contrato de la API de la entidad. Si cambia la tabla, la API no cambia.</p>
+				<span class="tag d">D28</span><a class="code-link" data-code="src/main/java/app/dto/ShortLinkResponse.java#L1-L30">ShortLinkResponse</a></div>
+			<div class="card"><h3>CORS solo para la extensión</h3>
+				<p>La web está en el mismo origen y no lo necesita. Se habilita solo <code>/api/**</code>, solo para <code>chrome-extension://*</code> y <code>moz-extension://*</code>, sin credenciales.</p>
+				<span class="tag d">D45</span><a class="code-link" data-code="src/main/java/app/Application.java#L35-L47">addCorsMappings</a></div>
+			<div class="card"><h3>Configuración en <code>application.properties</code></h3>
+				<p>Duración, largo y alfabeto del alias, palabras reservadas, intentos y cron se cambian sin tocar código. En el VPS, <code>APP_BASE_URL</code> pisa el dominio: el mismo JAR corre en los dos lados.</p>
+				<span class="tag c">C20</span><a class="code-link" data-code="src/main/resources/application.properties#L1-L13">properties</a></div>
+			<div class="card"><h3>Swagger / OpenAPI</h3>
+				<p>springdoc genera el contrato desde las anotaciones <code>@Operation</code> y <code>@ApiResponse</code> del controlador. Se ve en <a href="/swagger-ui.html">/swagger-ui.html</a>.</p>
+				<span class="tag">Consigna</span><a class="code-link" data-code="src/main/java/app/controller/LinkController.java#L41-L48">anotaciones</a></div>
+		</div>
+	</section>
+
+	<section id="ia" class="panel">
+		<h2>Cómo controlamos a la IA</h2>
+		<p>La consigna pone el foco en especificar, validar y asegurar la calidad de lo que genera la IA. Esto hicimos:</p>
+		<div class="grid2">
+			<div class="card"><h3>1. Especificar antes de generar</h3>
+				<p><code>contexto.md</code> junta las respuestas del Cliente (C1–C20) y las decisiones del equipo (D1–D45) con su motivo. A la IA se le pedía trabajar contra esa especificación, y el código cita los códigos (por ejemplo <code>D20</code> en <code>RedirectController</code>).</p></div>
+			<div class="card"><h3>2. Tests primero (TDD)</h3>
+				<p>Los tests se escribían antes del código y tenían que fallar. Los nombres siguen los grupos del plan de pruebas (A resolución, B validación, C creación, E limpieza, F QR).</p>
+				<a class="code-link" data-code="src/test/java/app/service/LinkServiceTest.java">LinkServiceTest</a></div>
+			<div class="card"><h3>3. Pruebas de mutación</h3>
+				<p>Para saber si un test sirve, se rompía el código a propósito (por ejemplo, se quitaba una validación) y se comprobaba que el test fallara. Un test que nunca falla no protege nada.</p></div>
+			<div class="card"><h3>4. Probar de verdad, no solo con tests</h3>
+				<p>Cada paso se probó levantando la app y en el VPS con <code>curl</code>: 201, 302, 404, QR <code>image/png</code> y preflight de CORS.</p></div>
+		</div>
+		<h3>Errores concretos que se le escaparon a la IA (y cómo los encontramos)</h3>
+		<table>
+			<tr><th>Qué pasó</th><th>Cómo se detectó</th><th>Corrección</th></tr>
+			<tr><td><code>secondsRemaining</code> devolvía 3599 en vez de 3600, y en el último segundo habría mostrado 0 con el enlace vigente.</td>
+				<td>Probando en el VPS. Los tests no lo vieron porque usaban un reloj fijo.</td>
+				<td>Primero un test que fallaba; después redondeo hacia arriba. <a class="code-link" data-code="src/main/java/app/dto/ShortLinkResponse.java#L17-L20">ceilDiv</a></td></tr>
+			<tr><td>El botón "Descargar QR" seguía visible con el atributo <code>hidden</code>.</td>
+				<td>Captura del navegador: una clase CSS con <code>display</code> le ganaba a <code>hidden</code>.</td>
+				<td>Regla <code>[hidden] { display: none !important; }</code> y un test que la verifica.</td></tr>
+			<tr><td>La extensión de <code>main</code> apuntaba a <code>localhost:8080</code>: bajada desde el sitio no funcionaba.</td>
+				<td>Revisando el zip descargado del VPS.</td>
+				<td>El servidor reescribe <code>config.js</code> con su propio dominio. <a class="code-link" data-code="src/main/java/app/controller/ExtensionController.java#L47-L67">withApiBaseUrl</a></td></tr>
+			<tr><td><code>/coloquio</code> respondía "Este enlace expiró o no existe".</td>
+				<td>La ruta cumple el patrón del alias.</td>
+				<td>Ruta explícita, test y palabra reservada.</td></tr>
+			<tr><td>La bitácora afirmaba que el dominio "no usaba JPA", y era falso.</td>
+				<td>Revisión humana contra el código (<code>ShortLink</code> usa <code>jakarta.persistence</code>).</td>
+				<td>Se corrigió el texto. Lección: lo que escribe la IA también se verifica.</td></tr>
+		</table>
+	</section>
+
+	<section id="debilidades" class="panel">
+		<h2>Lo que hay que decir antes de que lo encuentre el profe</h2>
+		<p class="callout">Reconocer un límite y explicar cómo se resolvería suma más que esconderlo.</p>
+		<ul>
+			<li><strong>La extensión no acorta sola al abrirse:</strong> espera que se toque ACORTAR. La consigna dice "con solo tocarlo genere y muestre". Arreglarlo es llamar a <code>shorten()</code> al final de <code>init()</code>. <a class="code-link" data-code="browser-extension/popup.js#L132-L135">popup.js</a></li>
+			<li><strong><code>@Autowired</code> en campos:</strong> sigue el estilo del proyecto del profe, pero la inyección por constructor permite campos <code>final</code> y tests sin Spring.</li>
+			<li><strong><code>QrService</code> depende de <code>LinkService</code>:</strong> reutiliza la regla <code>findLive</code> y <code>shortUrl</code> en vez de duplicarla. Es un acoplamiento consciente.</li>
+			<li><strong><code>ddl-auto=update</code>:</strong> Hibernate crea y ajusta la tabla. Para producción real convendrían migraciones versionadas (Flyway).</li>
+			<li><strong>Sin límite de pedidos por IP:</strong> la API es pública (C14). Con tráfico real, alguien podría llenar la base.</li>
+			<li><strong>Borrado físico, sin historial:</strong> el Cliente no pidió estadísticas (C7). Si la Etapa 2 pide métricas, habrá que guardar los enlaces en vez de borrarlos.</li>
+			<li><strong>Documentación de diseño:</strong> los ADR y la bitácora de prompts se sacaron de <code>main</code> al reorganizar, pero siguen en el historial de git.</li>
+		</ul>
+	</section>
+
+	<section id="preguntas" class="panel">
+		<h2>Preguntas probables</h2>
+		<details class="qa"><summary>¿Qué pasa si dos personas acortan al mismo tiempo y sale el mismo alias?</summary>
+			<p>El alias es la clave primaria. La segunda transacción falla al hacer <code>flush</code>, se captura la excepción y se reintenta con otro alias (hasta 10). Agotados, 503 con <code>Retry-After</code>. <a class="code-link" data-code="src/main/java/app/service/LinkService.java#L58-L78">ver</a></p></details>
+		<details class="qa"><summary>¿Cómo prueban que vence a los 60 minutos sin esperar una hora?</summary>
+			<p>El <code>Clock</code> es un bean. En los tests se reemplaza por <code>MutableClock</code> y se adelanta 60 minutos. <a class="code-link" data-code="src/test/java/app/support/MutableClock.java">MutableClock</a></p></details>
+		<details class="qa"><summary>¿Por qué <code>shorten</code> no es <code>@Transactional</code>?</summary>
+			<p>Porque después de una violación de clave la sesión de Hibernate no se puede seguir usando. Cada intento abre su propia transacción con <code>TransactionTemplate</code>. <a class="code-link" data-code="src/main/java/app/service/LinkService.java#L54-L67">ver</a></p></details>
+		<details class="qa"><summary>¿Qué pasa si se cae el servidor? ¿Se pierden los enlaces?</summary>
+			<p>No: HSQLDB guarda en archivo (<code>./data/shortener</code>). Hay un test que reinicia el contexto y vuelve a resolver el enlace (C13). <a class="code-link" data-code="src/test/java/app/service/PersistenceAcrossRestartTest.java">PersistenceAcrossRestartTest</a></p></details>
+		<details class="qa"><summary>¿Por qué el QR codifica la URL corta y no la original?</summary>
+			<p>Lo pide la consigna, y además así el QR deja de funcionar cuando el enlace vence. La URL sale de <code>app.base-url</code> y no del header <code>Host</code>, para que nadie pueda inyectar otro dominio.</p></details>
+		<details class="qa"><summary>¿Cómo evitan que <code>/api</code> o <code>/swagger</code> sean alias?</summary>
+			<p>Hay palabras reservadas configurables y el generador las saltea, comparando sin distinguir mayúsculas. Con 5 caracteres no podrían salir, pero protege si mañana se cambia el largo o se permite alias personalizado. <a class="code-link" data-code="src/main/java/app/service/AliasGenerator.java#L29-L49">AliasGenerator</a></p></details>
+		<details class="qa"><summary>Si en la Etapa 2 piden alias personalizado, ¿qué cambian?</summary>
+			<p>Un campo opcional en <code>ShortenRequest</code> y, en <code>LinkService</code>, usarlo en lugar de <code>aliasGenerator.generate()</code> (validando alfabeto y palabras reservadas). La tabla y la redirección no cambian.</p></details>
+		<details class="qa"><summary>Si piden contar visitas, ¿qué cambian?</summary>
+			<p>Un campo contador en <code>ShortLink</code> (o una tabla de visitas) que se incremente en <code>resolve</code>. Habría que dejar de borrar físicamente los vencidos si se quiere historial.</p></details>
+		<details class="qa"><summary>¿Cómo validan que la URL es válida?</summary>
+			<p>Solo formato, como pidió el Cliente (C1): no vacía, hasta 2048 caracteres, <code>http/https</code>, con host y puerto válido. No se consulta si el sitio existe. <a class="code-link" data-code="src/main/java/app/service/UrlValidator.java#L29-L54">UrlValidator</a></p></details>
+		<details class="qa"><summary>¿Qué cobertura tienen?</summary>
+			<p>JaCoCo exige al menos 70 % de líneas en servicios y entidades: si baja, <code>gradlew check</code> falla. <a class="code-link" data-code="build.gradle#L54-L76">build.gradle</a></p></details>
+	</section>
+
+	<footer class="muted">Código mostrado: versión <code>c40fbb0</code> del repositorio. Si el código cambió, manda el código.</footer>
+</main>
+
+<script>
+'use strict';
+(function () {
+	const CODE = 'https://github.com/martincrespo77/PP6-TPGrupo2/blob/c40fbb01c690bab8524c5cf14bf79ff636de14bb/';
+
+	function codeLink(path, label) {
+		const a = document.createElement('a');
+		a.className = 'code-link';
+		a.href = CODE + path;
+		a.target = '_blank';
+		a.rel = 'noopener';
+		a.textContent = label;
+		return a;
+	}
+
+	document.querySelectorAll('[data-code]').forEach(function (a) {
+		a.href = CODE + a.dataset.code;
+		a.target = '_blank';
+		a.rel = 'noopener';
+	});
+
+	const J = 'src/main/java/app/';
+	const CLASSES = [
+		{ id: 'web', layer: 0, stereo: 'HTML + JS', name: 'Página web',
+			members: ['submit → fetch POST', 'showResult(link)', 'markExpired()', 'copyText(text)'],
+			what: 'Formulario "Dirección a acortar" + botón ACORTAR. Llama a la API con ruta relativa y muestra el enlace, el QR y la hora de vencimiento.',
+			why: 'Muestra solo el último enlace (C8). Usa secondsRemaining y no el reloj del celular para marcar el vencimiento, por si la hora del dispositivo está mal. El copiado tiene una alternativa para HTTP plano, donde navigator.clipboard no existe.',
+			tags: ['Consigna', 'C8'],
+			code: [['src/main/resources/static/index.html#L16-L52', 'index.html'], ['src/main/resources/static/app.js#L89-L111', 'app.js · shorten'], ['src/main/resources/static/app.js#L45-L66', 'showResult']],
+			ask: '¿Por qué la ruta de la API es relativa? → Porque la web se sirve desde el mismo servidor: funciona igual en local y en el VPS sin configurar nada.' },
+		{ id: 'ext', layer: 0, stereo: 'Manifest V3', name: 'Extensión',
+			members: ['ext = browser ?? chrome', 'init(): pestaña activa', 'shorten(): POST', 'markExpired()'],
+			what: 'Popup para Chrome y Firefox que acorta la página que estás viendo. Mismo código para los dos navegadores.',
+			why: 'Solo pide el permiso activeTab (lo mínimo). La URL de la API viene de config.js, que el servidor reescribe al descargarla. En páginas que no son http/https deshabilita el botón (C10).',
+			tags: ['Consigna', 'C10'],
+			code: [['browser-extension/popup.js#L121-L136', 'popup.js · init'], ['browser-extension/popup.js#L92-L119', 'popup.js · shorten'], ['browser-extension/manifest.json', 'manifest.json']],
+			ask: '¿Cómo funciona en los dos navegadores? → Firefox expone browser y Chrome chrome; con Manifest V3 los dos devuelven promesas, así que alcanza con browser ?? chrome.' },
+
+		{ id: 'handler', layer: 1, stereo: '@RestControllerAdvice', name: 'GlobalExceptionHandler',
+			members: ['InvalidUrl → 400', 'InvalidQrSize → 400', 'LinkNotFound → 404', 'AliasUnavailable → 503', 'JSON roto → 400'],
+			what: 'Convierte las excepciones de la API en respuestas ProblemDetail (RFC 7807) con un mensaje para el usuario.',
+			why: 'Los servicios tiran excepciones con significado de negocio y no saben nada de HTTP. Está limitado a LinkController para que la redirección siga devolviendo una página HTML.',
+			tags: ['D26'],
+			code: [[J + 'exception/GlobalExceptionHandler.java#L15-L62', 'GlobalExceptionHandler']],
+			ask: '¿Por qué 503 y no 500 cuando no hay alias? → Es temporal: reintentar en un segundo puede funcionar. Por eso va con Retry-After: 1.' },
+		{ id: 'linkController', layer: 1, stereo: '@RestController', name: 'LinkController',
+			members: ['/api/v1/links', '+ shorten(req): 201', '+ qr(alias, size, download): PNG'],
+			what: 'La API REST: crear un enlace y pedir su QR.',
+			why: 'No tiene reglas de negocio: recibe, delega en el servicio y arma la respuesta HTTP (201 + Location, Content-Disposition, no-store). Versionada en /api/v1 (C18). Documentada con anotaciones de OpenAPI.',
+			tags: ['Consigna', 'C18'],
+			code: [[J + 'controller/LinkController.java#L30-L51', 'shorten'], [J + 'controller/LinkController.java#L53-L78', 'qr']],
+			ask: '¿Por qué 201 y no 200? → Porque se creó un recurso nuevo; el header Location indica dónde quedó.' },
+		{ id: 'redirect', layer: 1, stereo: '@Controller', name: 'RedirectController',
+			members: ['GET /{alias}', '+ redirect(alias): 302 | 404'],
+			what: 'Atiende el enlace corto: redirige al destino o muestra la página "Este enlace expiró o no existe".',
+			why: 'El patrón [A-Za-z0-9]{1,16} no admite puntos ni barras, así no choca con /api/** ni con archivos estáticos. 302 y no 301 porque el 301 queda en caché. Vencido e inexistente dan el mismo 404 (C6, D7).',
+			tags: ['Consigna', 'D7', 'D15', 'D20'],
+			code: [[J + 'controller/RedirectController.java#L19-L45', 'RedirectController']],
+			ask: '¿Por qué no es @RestController? → Porque devuelve una redirección o una página HTML, no JSON.' },
+		{ id: 'extController', layer: 1, stereo: '@Controller', name: 'ExtensionController',
+			members: ['GET /descargas/acortador-pp6.zip', '+ download(): zip'],
+			what: 'Entrega la extensión lista para instalar desde la web.',
+			why: 'Al arrancar, toma el zip que armó Gradle y reescribe config.js con app.base-url. Así la extensión bajada del VPS llama al VPS y la bajada en local, a localhost.',
+			tags: ['C10'],
+			code: [[J + 'controller/ExtensionController.java#L22-L67', 'ExtensionController'], ['build.gradle#L82-L96', 'build.gradle · extensionZip']],
+			ask: '¿Por qué no un zip fijo en el repo? → Quedaría desactualizado o apuntando al servidor equivocado.' },
+
+		{ id: 'qrService', layer: 2, stereo: '@Service', name: 'QrService',
+			members: ['MIN 128 · MAX 1024', '+ qrFor(alias, size): byte[]', '~ generatePng(text, size)'],
+			what: 'Genera el PNG del QR con ZXing.',
+			why: 'Usa la misma regla que la redirección (findLive): un enlace vencido no tiene QR. Codifica la URL corta armada con app.base-url, nunca con datos del pedido. Corrección de errores M para tolerar impresiones gastadas.',
+			tags: ['Consigna', 'C11', 'D21'],
+			code: [[J + 'service/QrService.java#L21-L64', 'QrService']],
+			ask: '¿Cómo prueban que el QR está bien? → El test decodifica el PNG con ZXing y compara el texto con la URL corta.' },
+		{ id: 'linkService', layer: 2, stereo: '@Service', name: 'LinkService',
+			members: ['- em: EntityManager', '- clock: Clock', '+ shorten(url)', '+ resolve(alias)', '+ findLive(alias)', '+ purgeExpired() @Scheduled'],
+			what: 'El corazón del sistema: acortar, resolver y borrar vencidos. Es dueño de sus consultas JPA.',
+			why: 'Cada intento de creación va en su propia transacción porque, tras un choque de clave, la sesión de Hibernate queda inutilizable. findLive es la única definición de "vigente". La limpieza es @Scheduled y solo libera espacio.',
+			tags: ['Consigna', 'D2', 'D5', 'D6', 'D11'],
+			code: [[J + 'service/LinkService.java#L54-L96', 'shorten + tryCreate'], [J + 'service/LinkService.java#L102-L122', 'resolve + findLive'], [J + 'service/LinkService.java#L124-L138', 'purgeExpired']],
+			ask: '¿Qué pasa con un alias vencido que todavía no borró el cron? → Si el generador lo vuelve a sacar, tryCreate lo borra y lo reasigna en la misma transacción.' },
+
+		{ id: 'validator', layer: 3, stereo: '@Component', name: 'UrlValidator',
+			members: ['+ validate(url)', '- hasValidHost(url)'],
+			what: 'Decide si una URL se puede acortar.',
+			why: 'Solo formato, como pidió el Cliente (C1): no vacía, hasta 2048 caracteres, http/https, con host y puerto válido. No consulta si el sitio existe. Los mensajes ya están en español para mostrarlos tal cual.',
+			tags: ['C1', 'D16-D19'],
+			code: [[J + 'service/UrlValidator.java#L11-L54', 'UrlValidator']],
+			ask: '¿Aceptan localhost o el propio dominio? → Sí, el Cliente lo permitió explícitamente (C1).' },
+		{ id: 'alias', layer: 3, stereo: '@Component', name: 'AliasGenerator',
+			members: ['length = 5', 'alphabet (31)', '+ generate(): String'],
+			what: 'Genera un alias al azar con SecureRandom, salteando palabras reservadas.',
+			why: 'No verifica que el alias esté libre: de eso se encarga LinkService, que reintenta. Así cada clase hace una sola cosa. Largo, alfabeto y reservadas están en application.properties.',
+			tags: ['C2', 'C4', 'D8', 'D10'],
+			code: [[J + 'service/AliasGenerator.java#L9-L50', 'AliasGenerator'], ['src/main/resources/application.properties#L8-L11', 'config']],
+			ask: '¿Cuántos alias posibles hay? → 31^5 ≈ 28,6 millones. Con el tráfico esperado, los choques son muy raros.' },
+		{ id: 'shortLink', layer: 3, stereo: '@Entity · short_link', name: 'ShortLink',
+			members: ['@Id alias', 'originalUrl', 'createdAt', 'expiresAt (índice)', '+ isExpired(now)'],
+			what: 'La única tabla. Cada fila es un enlace con su vencimiento.',
+			why: 'El alias es la clave primaria: la base impide duplicados. Hay un índice en expires_at para que la limpieza no recorra toda la tabla. isExpired usa el intervalo semiabierto [createdAt, expiresAt).',
+			tags: ['Consigna', 'D3', 'D30'],
+			code: [[J + 'mappings/ShortLink.java#L10-L44', 'ShortLink']],
+			ask: '¿Por qué Instant y no LocalDateTime? → Instant es un punto exacto en UTC: no depende de la zona horaria del servidor.' },
+		{ id: 'dto', layer: 3, stereo: 'record', name: 'DTOs',
+			members: ['ShortenRequest(url)', 'ShortLinkResponse(alias, shortUrl, …, secondsRemaining, qrUrl)'],
+			what: 'Lo que entra y sale por la API, separado de la entidad.',
+			why: 'Si cambia la tabla, la API no cambia, y nunca se expone la entidad. secondsRemaining se redondea hacia arriba para no mostrar 0 con el enlace todavía vigente.',
+			tags: ['D28'],
+			code: [[J + 'dto/ShortenRequest.java', 'ShortenRequest'], [J + 'dto/ShortLinkResponse.java#L7-L30', 'ShortLinkResponse']],
+			ask: '¿Por qué record? → Son inmutables y sin código repetido: constructor, getters, equals y toString vienen solos.' },
+
+		{ id: 'db', layer: 4, stereo: 'base de datos', name: 'HSQLDB',
+			members: ['jdbc:hsqldb:file:./data/shortener', 'tabla short_link', 'ddl-auto = update'],
+			what: 'Base relacional embebida que guarda en archivo.',
+			why: 'No hay que instalar nada y los enlaces sobreviven a un reinicio (C13). Hibernate crea la tabla a partir de la entidad.',
+			tags: ['Consigna', 'C13'],
+			code: [['src/main/resources/application.properties#L15-L22', 'datasource']],
+			ask: '¿Cómo se ve lo guardado? → Con la consola HQL del profe (hql-console), habilitada en local.' },
+		{ id: 'app', layer: 4, stereo: '@SpringBootApplication', name: 'Application',
+			members: ['@EnableScheduling', '+ clock(): Clock', '+ addCorsMappings()'],
+			what: 'Arranca la aplicación y declara lo transversal: el reloj, las tareas programadas y CORS.',
+			why: 'Un único Clock en UTC, truncado a milisegundos para que lo guardado vuelva igual de la base. CORS solo para la extensión, porque la web está en el mismo origen.',
+			tags: ['D45'],
+			code: [[J + 'Application.java#L16-L47', 'Application']],
+			ask: '¿Por qué inyectar un Clock en vez de usar Instant.now()? → Para que los tests controlen el tiempo.' },
+		{ id: 'props', layer: 4, stereo: 'configuración', name: 'application.properties',
+			members: ['app.base-url', 'app.link.ttl = 60m', 'app.alias.*', 'app.cleanup.cron'],
+			what: 'Todo lo que puede cambiar sin recompilar.',
+			why: 'Respuesta a la "regla del Cliente incierto" (C20): si cambian los 60 minutos o el largo del alias, se toca una línea. En el VPS, APP_BASE_URL pisa el dominio.',
+			tags: ['C20'],
+			code: [['src/main/resources/application.properties#L1-L29', 'application.properties']],
+			ask: '¿Qué hay que cambiar si piden enlaces de 24 horas? → app.link.ttl=24h. Nada de código.' }
+	];
+
+	const EDGES = [
+		['web', 'linkController', 'POST'],
+		['ext', 'linkController', 'POST'],
+		['web', 'extController', 'descarga'],
+		['handler', 'linkController', 'errores', true],
+		['linkController', 'linkService', ''],
+		['linkController', 'qrService', ''],
+		['redirect', 'linkService', 'findLive'],
+		['qrService', 'linkService', 'findLive'],
+		['linkService', 'validator', ''],
+		['linkService', 'alias', ''],
+		['linkService', 'shortLink', 'JPA'],
+		['linkService', 'dto', ''],
+		['shortLink', 'db', '']
+	];
+
+	const diagram = document.getElementById('diagram');
+	const svg = document.getElementById('edges');
+	const layers = diagram.querySelectorAll('.layer');
+	const detail = document.getElementById('detail');
+	const boxes = {};
+
+	layers.forEach(function (layer) {
+		const name = document.createElement('span');
+		name.className = 'layer-name';
+		name.textContent = layer.dataset.layer;
+		layer.appendChild(name);
+	});
+
+	CLASSES.forEach(function (c) {
+		const box = document.createElement('button');
+		box.type = 'button';
+		box.className = 'uml';
+		box.dataset.id = c.id;
+		box.setAttribute('aria-label', c.name + ': ver explicación');
+		const head = document.createElement('div');
+		head.className = 'head';
+		const stereo = document.createElement('span');
+		stereo.className = 'stereo';
+		stereo.textContent = '«' + c.stereo + '»';
+		const name = document.createElement('span');
+		name.className = 'name';
+		name.textContent = c.name;
+		head.append(stereo, name);
+		const list = document.createElement('ul');
+		c.members.forEach(function (m) {
+			const li = document.createElement('li');
+			li.textContent = m;
+			list.appendChild(li);
+		});
+		box.append(head, list);
+		box.addEventListener('click', function () { select(c.id); });
+		layers[c.layer].appendChild(box);
+		boxes[c.id] = box;
+	});
+
+	function rectOf(el) {
+		const base = diagram.getBoundingClientRect();
+		const r = el.getBoundingClientRect();
+		return { x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height };
+	}
+
+	function borderPoint(r, toward) {
+		const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+		const dx = toward.x - cx, dy = toward.y - cy;
+		if (dx === 0 && dy === 0) return { x: cx, y: cy };
+		const sx = dx === 0 ? Infinity : (r.w / 2) / Math.abs(dx);
+		const sy = dy === 0 ? Infinity : (r.h / 2) / Math.abs(dy);
+		const s = Math.min(sx, sy);
+		return { x: cx + dx * s, y: cy + dy * s };
+	}
+
+	let selected = null;
+
+	function draw() {
+		svg.querySelectorAll('line, text').forEach(function (n) { n.remove(); });
+		EDGES.forEach(function (e) {
+			const a = rectOf(boxes[e[0]]), b = rectOf(boxes[e[1]]);
+			const ca = { x: a.x + a.w / 2, y: a.y + a.h / 2 }, cb = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+			const p1 = borderPoint(a, cb), p2 = borderPoint(b, ca);
+			const hl = selected && (e[0] === selected || e[1] === selected);
+			const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+			line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+			line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+			line.setAttribute('class', 'edge' + (e[3] ? ' dashed' : '') + (hl ? ' hl' : ''));
+			line.setAttribute('marker-end', hl ? 'url(#arrow-hl)' : 'url(#arrow)');
+			svg.appendChild(line);
+			if (e[2]) {
+				const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+				t.setAttribute('x', (p1.x + p2.x) / 2 + 4);
+				t.setAttribute('y', (p1.y + p2.y) / 2 - 4);
+				t.setAttribute('class', 'edge-label' + (hl ? ' hl' : ''));
+				t.textContent = e[2];
+				svg.appendChild(t);
+			}
+		});
+	}
+
+	function field(dl, title, content) {
+		const dt = document.createElement('dt');
+		dt.textContent = title;
+		const dd = document.createElement('dd');
+		if (typeof content === 'string') dd.textContent = content; else dd.append(content);
+		dl.append(dt, dd);
+	}
+
+	function select(id) {
+		const c = CLASSES.find(function (x) { return x.id === id; });
+		selected = id;
+		Object.values(boxes).forEach(function (b) { b.classList.toggle('active', b.dataset.id === id); });
+		draw();
+
+		detail.replaceChildren();
+		const h = document.createElement('h3');
+		h.textContent = c.name;
+		const st = document.createElement('p');
+		st.className = 'muted';
+		st.style.margin = '0';
+		st.textContent = '«' + c.stereo + '» · ' + layers[c.layer].dataset.layer;
+		const tags = document.createElement('p');
+		c.tags.forEach(function (t) {
+			const s = document.createElement('span');
+			s.className = 'tag' + (/^C\d/.test(t) ? ' c' : /^D\d/.test(t) ? ' d' : '');
+			s.textContent = t;
+			tags.appendChild(s);
+		});
+		const dl = document.createElement('dl');
+		field(dl, 'Qué hace', c.what);
+		field(dl, 'Por qué está así', c.why);
+		const links = document.createElement('div');
+		c.code.forEach(function (l) { links.appendChild(codeLink(l[0], l[1])); });
+		field(dl, 'Código', links);
+		const uses = EDGES.filter(function (e) { return e[0] === id; }).map(function (e) { return name(e[1]); });
+		const usedBy = EDGES.filter(function (e) { return e[1] === id; }).map(function (e) { return name(e[0]); });
+		if (uses.length) field(dl, 'Usa a', uses.join(', '));
+		if (usedBy.length) field(dl, 'Lo usan', usedBy.join(', '));
+		field(dl, 'Pregunta probable', c.ask);
+		detail.append(h, st, tags, dl);
+		detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+	}
+
+	function name(id) {
+		return CLASSES.find(function (x) { return x.id === id; }).name;
+	}
+
+	document.querySelectorAll('[role="tab"]').forEach(function (tab) {
+		tab.addEventListener('click', function () {
+			document.querySelectorAll('[role="tab"]').forEach(function (t) { t.setAttribute('aria-selected', String(t === tab)); });
+			document.querySelectorAll('[role="tabpanel"]').forEach(function (p) { p.hidden = p.dataset.panel !== tab.dataset.tab; });
+		});
+	});
+
+	window.addEventListener('resize', draw);
+	window.addEventListener('load', draw);
+	if (document.fonts) document.fonts.ready.then(draw);
+	draw();
+})();
+</script>
+</body>
+</html>

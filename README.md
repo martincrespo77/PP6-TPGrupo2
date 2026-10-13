@@ -6,6 +6,7 @@ Trabajo Práctico Integrador – **Paradigmas de Programación VI** – Etapa 1
 
 - Consigna: [`TP_PP6_v1.0.md`](TP_PP6_v1.0.md)
 - Especificación, decisiones de diseño y plan de pruebas: [`contexto.md`](contexto.md)
+- Cómo está hecho, clase por clase y con enlaces al código: https://paradigmas6.agustingimenez.ar/coloquio (con la app levantada, también en http://localhost:8080/coloquio)
 
 ## Qué hace
 
@@ -34,6 +35,7 @@ Con la aplicación levantada:
 
 - Página web: http://localhost:8080
 - Documentación de la API (Swagger): http://localhost:8080/swagger-ui.html
+- Guía del código (diagrama de clases, recorridos y decisiones): http://localhost:8080/coloquio
 
 Los enlaces se guardan en HSQLDB en modo archivo (`./data/`, ignorado por git) y sobreviven a un reinicio.
 
@@ -64,10 +66,10 @@ Usa el servidor indicado en `config.js`, que es `http://localhost:8080`: **la ap
 
 En páginas que no son http/https (por ejemplo `chrome://extensions` o una pestaña nueva) el botón ACORTAR aparece deshabilitado con el aviso "Esta página no se puede acortar (solo http/https)".
 
-Para generar el `.zip` de la extensión en `build/extension/`:
+Con la aplicación levantada, la página web ofrece el `.zip` en **Descargar la extensión**, ya configurado para llamar al servidor del que se bajó. Para generarlo sin levantar la app, en `build/extension/acortador-pp6.zip`:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\package-extension.ps1
+.\gradlew.bat extensionZip
 ```
 
 ## Estructura del código
@@ -86,4 +88,69 @@ src/main/java/app
 src/main/resources/static/   página web (HTML, CSS y JS sin framework)
 src/test/java/app/           tests unitarios y de integración
 browser-extension/           extensión para Chrome y Firefox
+```
+
+Las flechas van de quien usa a quien es usado. La versión interactiva, con la explicación de cada clase y botones al código, está en `/coloquio`.
+
+```mermaid
+classDiagram
+    direction TB
+    class LinkController {
+        <<RestController>>
+        +shorten(ShortenRequest) 201
+        +qr(alias, size, download) PNG
+    }
+    class RedirectController {
+        <<Controller>>
+        +redirect(alias) 302 o 404
+    }
+    class ExtensionController {
+        <<Controller>>
+        +download() zip
+    }
+    class GlobalExceptionHandler {
+        <<RestControllerAdvice>>
+        400 · 404 · 503 ProblemDetail
+    }
+    class LinkService {
+        <<Service>>
+        -EntityManager em
+        -Clock clock
+        +shorten(url) ShortLinkResponse
+        +resolve(alias) Optional~String~
+        +findLive(alias) Optional~ShortLink~
+        +purgeExpired() int
+    }
+    class QrService {
+        <<Service>>
+        +qrFor(alias, size) byte[]
+    }
+    class AliasGenerator {
+        <<Component>>
+        +generate() String
+    }
+    class UrlValidator {
+        <<Component>>
+        +validate(url)
+    }
+    class ShortLink {
+        <<Entity>>
+        -String alias
+        -String originalUrl
+        -Instant createdAt
+        -Instant expiresAt
+        +isExpired(now) boolean
+    }
+    class ShortLinkResponse {
+        <<record>>
+    }
+    GlobalExceptionHandler ..> LinkController : atiende sus errores
+    LinkController --> LinkService
+    LinkController --> QrService
+    RedirectController --> LinkService
+    QrService --> LinkService
+    LinkService --> UrlValidator
+    LinkService --> AliasGenerator
+    LinkService --> ShortLink : JPA
+    LinkService --> ShortLinkResponse
 ```
