@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 700" width="960" height="700" role="img" aria-labelledby="t d">
+  <title id="t">Arquitectura del acortador de enlaces PP6</title>
+  <desc id="d">Monolito Spring Boot en capas: clientes, controladores con CORS y ProblemDetail, servicios de dominio, tarea programada de limpieza y persistencia JPA sobre HSQLDB.</desc>
+  <defs>
+    <style>
+      text { font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace; }
+      .h   { font-size: 12px; font-weight: 700; }
+      .s   { font-size: 10.5px; fill: #AEBDCC; }
+      .m   { font-size: 10px; fill: #7F93A8; }
+      .lbl { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; }
+      .box { fill: #0F1620; stroke-width: 1.4; }
+      .wire { fill: none; stroke: #6B8299; stroke-width: 1.4; marker-end: url(#arrow); }
+      .cy { stroke: #00E5FF; } .cyt { fill: #00E5FF; }
+      .rd { stroke: #FF4D6D; } .rdt { fill: #FF4D6D; }
+      .am { stroke: #FFB020; } .amt { fill: #FFB020; }
+      .pu { stroke: #B388FF; } .put { fill: #B388FF; }
+      .gr { stroke: #00FF9C; } .grt { fill: #00FF9C; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#6B8299"/>
+    </marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="959" height="699" rx="16" fill="#0B0F14" stroke="#1C2A38"/>
+
+  <text x="24" y="36" class="h" fill="#E6F1FF" font-size="14">ARQUITECTURA · ACORTADOR DE ENLACES PP6</text>
+  <text x="936" y="36" class="m" text-anchor="end">monolito Spring Boot en capas · flechas: quien usa → quien es usado</text>
+
+  <!-- Bandas de capa -->
+  <g>
+    <rect x="16" y="60"  width="928" height="92"  rx="10" fill="#00E5FF" fill-opacity="0.04" stroke="#00E5FF" stroke-opacity="0.25"/>
+    <rect x="16" y="166" width="928" height="118" rx="10" fill="#FF4D6D" fill-opacity="0.04" stroke="#FF4D6D" stroke-opacity="0.25"/>
+    <rect x="16" y="298" width="928" height="136" rx="10" fill="#FFB020" fill-opacity="0.04" stroke="#FFB020" stroke-opacity="0.25"/>
+    <rect x="16" y="448" width="928" height="76"  rx="10" fill="#B388FF" fill-opacity="0.04" stroke="#B388FF" stroke-opacity="0.25"/>
+    <rect x="16" y="538" width="928" height="96"  rx="10" fill="#00FF9C" fill-opacity="0.04" stroke="#00FF9C" stroke-opacity="0.25"/>
+
+    <text x="28" y="96"  class="lbl cyt">01</text><text x="28" y="112" class="lbl cyt">CLIENTES</text>
+    <text x="28" y="212" class="lbl rdt">02</text><text x="28" y="228" class="lbl rdt">API REST</text><text x="28" y="244" class="lbl rdt">+ BORDE</text>
+    <text x="28" y="356" class="lbl amt">03</text><text x="28" y="372" class="lbl amt">DOMINIO</text>
+    <text x="28" y="482" class="lbl put">04</text><text x="28" y="498" class="lbl put">TAREAS</text>
+    <text x="28" y="580" class="lbl grt">05</text><text x="28" y="596" class="lbl grt">PERSIS-</text><text x="28" y="612" class="lbl grt">TENCIA</text>
+  </g>
+
+  <!-- 01 Clientes -->
+  <g>
+    <rect x="150" y="70" width="182" height="72" rx="6" class="box cy"/>
+    <text x="162" y="90" class="h cyt">NAVEGADOR / QR</text>
+    <text x="162" y="110" class="s">GET /{alias}</text>
+    <text x="162" y="126" class="m">sigue el 302 o ve el 404</text>
+
+    <rect x="352" y="70" width="182" height="72" rx="6" class="box cy"/>
+    <text x="364" y="90" class="h cyt">PÁGINA WEB</text>
+    <text x="364" y="110" class="s">index.html · app.js</text>
+    <text x="364" y="126" class="m">HTML+CSS+JS sin framework</text>
+
+    <rect x="554" y="70" width="182" height="72" rx="6" class="box cy"/>
+    <text x="566" y="90" class="h cyt">EXTENSIÓN MV3</text>
+    <text x="566" y="110" class="s">Chrome · Edge · Firefox</text>
+    <text x="566" y="126" class="m">popup.js · activeTab</text>
+
+    <rect x="756" y="70" width="182" height="72" rx="6" class="box cy"/>
+    <text x="768" y="90" class="h cyt">DOCS Y DESCARGAS</text>
+    <text x="768" y="110" class="s">/swagger-ui.html</text>
+    <text x="768" y="126" class="m">/coloquio · .zip extensión</text>
+  </g>
+
+  <!-- 02 API REST + borde -->
+  <g>
+    <rect x="150" y="176" width="182" height="70" rx="6" class="box rd"/>
+    <text x="162" y="195" class="h rdt">RedirectController</text>
+    <text x="162" y="214" class="s">GET /{alias} → 302 | 404</text>
+    <text x="162" y="230" class="m">no-store · nunca 301 (I3)</text>
+
+    <rect x="352" y="176" width="384" height="70" rx="6" class="box rd"/>
+    <text x="364" y="195" class="h rdt">LinkController <tspan class="m">@RestController · /api/v1/links</tspan></text>
+    <text x="364" y="214" class="s">POST /api/v1/links → 201 { shortUrl, expiresAt, qrUrl }</text>
+    <text x="364" y="230" class="s">GET  /api/v1/links/{alias}/qr?size&amp;download → PNG</text>
+
+    <rect x="756" y="176" width="182" height="70" rx="6" class="box rd"/>
+    <text x="768" y="195" class="h rdt">ExtensionController</text>
+    <text x="768" y="214" class="s">zip: config.js ← base-url</text>
+    <text x="768" y="230" class="m">+ ColoquioController</text>
+
+    <rect x="150" y="252" width="788" height="24" rx="5" fill="#1A0F14" stroke="#FF4D6D" stroke-opacity="0.6" stroke-dasharray="4 3"/>
+    <text x="544" y="268" class="m" text-anchor="middle" fill="#FF8FA3">CORS /api/** solo extensiones · alias [A-Za-z0-9]{1,16} · ProblemDetail RFC 7807 (400·404·503) · sin listado (I7)</text>
+  </g>
+
+  <!-- 03 Dominio -->
+  <g>
+    <rect x="150" y="308" width="384" height="116" rx="6" class="box am"/>
+    <text x="162" y="327" class="h amt">LinkService <tspan class="m">@Service · EntityManager + JPQL</tspan></text>
+    <text x="162" y="347" class="s">shorten(url)    valida → alias → persist</text>
+    <text x="162" y="362" class="m">                ≤10 intentos · 1 tx por intento (I2)</text>
+    <text x="162" y="380" class="s">findLive(alias) vigente ⇔ now &lt; expiresAt (I1)</text>
+    <text x="162" y="397" class="s">shortUrl()      siempre desde app.base-url (I4)</text>
+    <text x="162" y="414" class="m">Clock UTC inyectado · TTL app.link.ttl = 60m</text>
+
+    <rect x="554" y="308" width="182" height="116" rx="6" fill="none" stroke="#FFB020" stroke-opacity="0.45" stroke-dasharray="4 3"/>
+    <rect x="562" y="316" width="166" height="30" rx="5" class="box am"/>
+    <text x="572" y="335" class="h amt">AliasGenerator</text><text x="720" y="335" class="m" text-anchor="end">5 de 31</text>
+    <rect x="562" y="351" width="166" height="30" rx="5" class="box am"/>
+    <text x="572" y="370" class="h amt">UrlValidator</text><text x="720" y="370" class="m" text-anchor="end">≤2048</text>
+    <rect x="562" y="386" width="166" height="30" rx="5" class="box am"/>
+    <text x="572" y="405" class="h amt">ShortLink</text><text x="720" y="405" class="m" text-anchor="end">@Entity</text>
+
+    <rect x="756" y="308" width="182" height="116" rx="6" class="box am"/>
+    <text x="768" y="327" class="h amt">QrService</text>
+    <text x="768" y="347" class="s">qrFor(alias, size)</text>
+    <text x="768" y="364" class="m">→ LinkService.findLive</text>
+    <text x="768" y="381" class="s">128–1024 px · ECC M</text>
+    <text x="768" y="398" class="m">contenido = shortUrl</text>
+    <text x="768" y="414" class="m">solo enlaces vigentes</text>
+  </g>
+
+  <!-- 04 Tareas -->
+  <g>
+    <rect x="150" y="458" width="182" height="56" rx="6" class="box pu"/>
+    <text x="162" y="476" class="h put">@Scheduled cron</text>
+    <text x="162" y="492" class="s">0 0 3 * * * → purge</text>
+    <text x="162" y="506" class="m">borra expiresAt ≤ now (I6)</text>
+
+    <rect x="554" y="458" width="182" height="56" rx="6" class="box pu"/>
+    <text x="566" y="476" class="h put">SLF4J · logs</text>
+    <text x="566" y="492" class="s">alta · redirect · purga</text>
+    <text x="566" y="506" class="m">alias no disponible</text>
+  </g>
+
+  <!-- 05 Persistencia -->
+  <g>
+    <rect x="150" y="548" width="182" height="76" rx="6" class="box gr"/>
+    <text x="162" y="567" class="h grt">HSQLDB</text>
+    <text x="162" y="585" class="s">modo archivo</text>
+    <text x="162" y="600" class="s">./data/shortener</text>
+    <text x="162" y="615" class="m">short_link · idx expires</text>
+
+    <rect x="352" y="548" width="182" height="76" rx="6" class="box gr"/>
+    <text x="364" y="567" class="h grt">JPA / Hibernate</text>
+    <text x="364" y="585" class="s">EntityManager</text>
+    <text x="364" y="600" class="s">persist, nunca merge</text>
+    <text x="364" y="615" class="m">ddl-auto=update</text>
+
+    <rect x="756" y="548" width="182" height="76" rx="6" class="box gr"/>
+    <text x="768" y="567" class="h grt">ZXing 3.5.4</text>
+    <text x="768" y="585" class="s">QRCodeWriter</text>
+    <text x="768" y="600" class="s">MatrixToImageWriter</text>
+    <text x="768" y="615" class="m">PNG · corrección M</text>
+
+    <rect x="554" y="548" width="182" height="76" rx="6" class="box gr"/>
+    <text x="566" y="567" class="h grt">Configuración</text>
+    <text x="566" y="585" class="s">application.properties</text>
+    <text x="566" y="600" class="s">APP_BASE_URL (.env)</text>
+    <text x="566" y="615" class="m">alias · TTL · cron</text>
+  </g>
+
+  <!-- Conectores -->
+  <g>
+    <line x1="241" y1="142" x2="241" y2="174" class="wire"/>
+    <line x1="443" y1="142" x2="443" y2="174" class="wire"/>
+    <line x1="645" y1="142" x2="645" y2="174" class="wire"/>
+    <line x1="847" y1="142" x2="847" y2="174" class="wire"/>
+
+    <line x1="241" y1="246" x2="241" y2="306" class="wire"/>
+    <line x1="443" y1="246" x2="443" y2="306" class="wire"/>
+    <path d="M720 246 V290 H847 V306" class="wire"/>
+
+    <line x1="534" y1="366" x2="552" y2="366" class="wire"/>
+    <line x1="241" y1="458" x2="241" y2="426" class="wire"/>
+    <line x1="443" y1="424" x2="443" y2="546" class="wire"/>
+    <line x1="847" y1="424" x2="847" y2="546" class="wire"/>
+    <line x1="352" y1="586" x2="334" y2="586" class="wire"/>
+  </g>
+
+  <!-- Leyenda -->
+  <g>
+    <rect x="16" y="650" width="928" height="36" rx="8" fill="#0F1620" stroke="#1C2A38"/>
+    <rect x="34"  y="662" width="12" height="12" rx="2" fill="#00E5FF"/><text x="54"  y="672" class="s">Clientes</text>
+    <rect x="148" y="662" width="12" height="12" rx="2" fill="#FF4D6D"/><text x="168" y="672" class="s">API / Seguridad</text>
+    <rect x="304" y="662" width="12" height="12" rx="2" fill="#FFB020"/><text x="324" y="672" class="s">Dominio</text>
+    <rect x="414" y="662" width="12" height="12" rx="2" fill="#B388FF"/><text x="434" y="672" class="s">Tareas</text>
+    <rect x="514" y="662" width="12" height="12" rx="2" fill="#00FF9C"/><text x="534" y="672" class="s">Persistencia</text>
+    <line x1="650" y1="668" x2="680" y2="668" class="wire"/><text x="690" y="672" class="s">usa</text>
+    <text x="928" y="672" class="m" text-anchor="end">I1…I7 = invariantes</text>
+  </g>
+</svg>
