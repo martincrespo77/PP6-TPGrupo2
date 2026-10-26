@@ -107,7 +107,7 @@ class WebClientStaticFilesTest {
 		assertThat(fetch("/coloquio.html")).contains(
 				"<html lang=\"es\">",
 				"<meta charset=\"UTF-8\">",
-				"https://github.com/martincrespo77/PP6-TPGrupo2/blob/c40fbb01c690bab8524c5cf14bf79ff636de14bb/");
+				"https://github.com/martincrespo77/PP6-TPGrupo2/blob/b30ec49c51cdd2136e93d6b54d935b77efae8380/");
 	}
 
 	@Test

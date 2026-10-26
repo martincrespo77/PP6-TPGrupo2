@@ -26,6 +26,7 @@
 		.tag { display: inline-block; font-size: 0.78rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; margin: 0 4px 4px 0; background: #eef1f6; color: var(--muted); }
 		.tag.c { background: #e3f4ea; color: var(--ok); }
 		.tag.d { background: var(--accent-soft); color: var(--accent); }
+		.tag.new { background: #fde8f0; color: #a3245a; }
 		.code-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-size: 0.88rem; font-weight: 600;
 			background: #1d2433; color: #fff; padding: 5px 11px; border-radius: 8px; margin: 4px 6px 0 0; }
 		.code-link::before { content: "</>"; font: 600 0.8rem ui-monospace, Consolas, monospace; opacity: 0.75; }
@@ -40,17 +41,19 @@
 		.layer.client { background: var(--client); } .layer.http { background: var(--http); } .layer.service { background: var(--service); }
 		.layer.data { background: var(--data); } .layer.config { background: var(--config); }
 		.uml { position: relative; z-index: 2; width: 184px; background: #fff; border: 1.5px solid #9aa6bd; border-radius: 6px; cursor: pointer; text-align: left; padding: 0; font: inherit; color: inherit; }
+		.uml.stage2 { border-color: #c45b8a; }
 		.uml:hover, .uml:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
 		.uml.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(36, 87, 214, 0.35); }
 		.uml .head { padding: 6px 8px; border-bottom: 1.5px solid #9aa6bd; text-align: center; }
 		.uml .stereo { display: block; font-size: 0.72rem; color: var(--muted); }
 		.uml .name { display: block; font-weight: 700; font-size: 0.95rem; }
 		.uml ul { list-style: none; margin: 0; padding: 6px 8px; overflow-wrap: anywhere; font: 0.74rem/1.45 ui-monospace, Consolas, monospace; color: #3a4357; }
-		.edge { stroke: #8a94a8; stroke-width: 1.6; fill: none; }
+		.edge { stroke: #8a94a8; stroke-width: 1.6; fill: none; opacity: 0.55; }
 		.edge.dashed { stroke-dasharray: 5 4; }
-		.edge.hl { stroke: var(--accent); stroke-width: 2.6; }
+		.edge.hl { stroke: var(--accent); stroke-width: 2.6; opacity: 1; }
 		.edge-label { font: 600 10px system-ui, sans-serif; fill: #5b6577; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
-		.edge-label.hl { fill: var(--accent); }
+		.edge-label.dim { display: none; }
+		.edge-label.hl { fill: var(--accent); display: inline; }
 		.detail { position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow: auto; }
 		.detail h3 { margin-top: 0; font-size: 1.25rem; }
 		.detail dt { font-weight: 700; margin-top: 12px; }
@@ -87,15 +90,17 @@
 <body>
 <main>
 	<header class="panel">
-		<p class="muted" style="margin:0">Paradigmas de Programación VI · TP Grupo 2 · Etapa 1</p>
+		<p class="muted" style="margin:0">Paradigmas de Programación VI · TP Grupo 2 · Etapas 1 y 2</p>
 		<h1>Cómo está hecho el acortador</h1>
 		<p>Guía para explicar el código: qué hace cada pieza, por qué está así y dónde está. Cada botón
 			<span class="code-link" style="pointer-events:none">Ver código</span> abre el archivo en GitHub, en las líneas exactas.</p>
 		<p class="muted">Etiquetas de origen: <span class="tag c">C#</span> lo pidió el Cliente en la elucidación ·
-			<span class="tag d">D#</span> decisión del equipo (las dos están en <code>contexto.md</code>) ·
-			<span class="tag">Consigna</span> está en <code>TP_PP6_v1.0.md</code>.</p>
+			<span class="tag d">D#</span> decisión del equipo o pedido de la Etapa 2 (las dos están en <code>contexto.md</code>) ·
+			<span class="tag">Consigna</span> está en <code>TP_PP6_v1.0.md</code> ·
+			<span class="tag new">Etapa 2</span> agregado en la segunda etapa.</p>
 		<nav class="toc" aria-label="Secciones">
 			<a href="#resumen">Resumen en 2 minutos</a>
+			<a href="#etapa2">Qué se agregó en la Etapa 2</a>
 			<a href="#diagrama">Diagrama de clases</a>
 			<a href="#recorridos">Recorridos paso a paso</a>
 			<a href="#decisiones">Por qué usamos esto</a>
@@ -110,17 +115,50 @@
 		<h2>Resumen en 2 minutos</h2>
 		<p>Si el profe dice "cuéntenme el proyecto", esto se puede decir de corrido:</p>
 		<ol>
-			<li><strong>Qué es:</strong> un servicio que recibe una URL larga y devuelve una corta (<code>/k3m9x</code>) con su QR. El enlace vale 60 minutos; después responde 404 y el alias puede reasignarse.</li>
-			<li><strong>Cómo está armado:</strong> un backend Spring Boot con una API REST y tres clientes: la página web, la extensión de Chrome/Firefox y cualquier navegador que abre el enlace corto.</li>
-			<li><strong>Capas:</strong> los <em>controladores</em> solo traducen HTTP; los <em>servicios</em> tienen las reglas (validar, generar alias, vencer, QR); la <em>entidad</em> <code>ShortLink</code> se guarda con JPA/Hibernate en HSQLDB.</li>
-			<li><strong>La regla central:</strong> el vencimiento se evalúa <em>cada vez que se lee</em> (<code>isExpired(now)</code>), así un enlace vencido nunca redirige aunque la limpieza todavía no lo haya borrado.</li>
-			<li><strong>Cómo sabemos que anda:</strong> más de 110 tests (unitarios y de integración con MockMvc), cobertura mínima del 70 % en servicios y entidades, y el sistema corriendo en <code>paradigmas6.agustingimenez.ar</code>.</li>
+			<li><strong>Qué es:</strong> un servicio que recibe una URL larga y devuelve una corta con su QR. Los públicos son lo más cortos posible (<code>/1</code>, <code>/2</code>, …, <code>/z</code>, <code>/10</code>). Duran 60 minutos; después dan 404 y el alias se reutiliza.</li>
+			<li><strong>Usuarios (Etapa 2):</strong> quien inicia sesión con Google tiene su espacio <code>/{usuario}/{alias}</code>. La computadora entra escaneando un QR con el celular, como WhatsApp Web, y su sesión vence sola a los 30 minutos salvo que la extienda.</li>
+			<li><strong>Cómo está armado:</strong> un backend Spring Boot con API REST y Spring Security, y tres clientes: las páginas web, la extensión de Chrome/Firefox y cualquier navegador que abre un enlace.</li>
+			<li><strong>Capas:</strong> los <em>controladores</em> solo traducen HTTP; los <em>servicios</em> tienen las reglas; las <em>entidades</em> (<code>ShortLink</code>, <code>PersonalLink</code>, <code>AppUser</code>, <code>LoginRequest</code>) se guardan con JPA/Hibernate en HSQLDB.</li>
+			<li><strong>La regla central:</strong> todo lo que vence (enlaces, códigos QR, nombres reservados, sesiones) se evalúa <em>al leerlo</em> contra un <code>Clock</code> inyectado. Las limpiezas programadas solo liberan espacio.</li>
+			<li><strong>Cómo sabemos que anda:</strong> 237 tests (unitarios y de integración con MockMvc y Spring Security Test), cobertura mínima del 70 % en servicios y entidades, y el sistema corriendo en <code>paradigmas6.agustingimenez.ar</code>.</li>
 		</ol>
+	</section>
+
+	<section id="etapa2" class="panel">
+		<h2>Qué se agregó en la Etapa 2</h2>
+		<p class="muted">Cada fila es un pedido del Cliente, cómo se resolvió y dónde está. Las decisiones D48 a D60 están en <code>contexto.md</code>.</p>
+		<table>
+			<tr><th>Pedido</th><th>Cómo se resolvió</th><th>Código</th></tr>
+			<tr><td><strong>Alias mínimos</strong> <span class="tag d">D8</span></td>
+				<td>Sin requisito de seguridad, el alias es el menor número libre escrito en base 33: <code>1</code>…<code>9</code>, <code>a</code>…<code>z</code>, <code>10</code>… Si un enlace vence, su alias vuelve a estar disponible.</td>
+				<td><a class="code-link" data-code="src/main/java/app/service/AliasGenerator.java#L8-L46">AliasGenerator</a></td></tr>
+			<tr><td><strong>Usuarios con Google</strong> <span class="tag d">D49</span> <span class="tag d">D50</span></td>
+				<td>OAuth2/OIDC con Spring Security. En el primer ingreso se crea el usuario con un nombre <code>usuario-xxxxxxxx</code> que hay que reemplazar por uno propio antes de crear enlaces.</td>
+				<td><a class="code-link" data-code="src/main/java/app/service/UserService.java#L56-L74">registerIfNew</a><a class="code-link" data-code="src/main/java/app/SecurityConfig.java#L40-L79">SecurityConfig</a></td></tr>
+			<tr><td><strong>Ingreso de la computadora por QR</strong> <span class="tag d">D51</span> <span class="tag d">D58</span></td>
+				<td>La computadora pide un código y muestra su QR; el celular lo abre, inicia sesión con Google y confirma. El código dura 60 s, la página pide otro sola y el anterior deja de servir.</td>
+				<td><a class="code-link" data-code="src/main/java/app/controller/LoginRequestController.java#L66-L131">LoginRequestController</a></td></tr>
+			<tr><td><strong>Enlaces personales</strong> <span class="tag d">D48</span></td>
+				<td><code>/{usuario}/{alias}</code> con alias elegido o, si se deja vacío, el más corto libre del usuario (<code>/agustin/1</code>). El alias se puede cambiar después.</td>
+				<td><a class="code-link" data-code="src/main/java/app/service/PersonalLinkService.java#L57-L141">PersonalLinkService</a></td></tr>
+			<tr><td><strong>Un enlace público nunca toma el nombre de un usuario</strong> <span class="tag d">D54</span></td>
+				<td>El generador saltea los nombres de usuario actuales y los reservados, y nadie puede elegir como nombre el alias de un enlace público vigente.</td>
+				<td><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L65-L115">LinkService.shorten</a></td></tr>
+			<tr><td><strong>Cambio de nombre con período de gracia</strong> <span class="tag d">D55</span> <span class="tag d">D56</span> <span class="tag d">D57</span></td>
+				<td>El nombre anterior queda reservado 10 minutos para la misma cuenta: se puede volver a él y sus enlaces muestran un aviso con la dirección nueva. Después se libera.</td>
+				<td><a class="code-link" data-code="src/main/java/app/service/UserService.java#L117-L151">chooseUsername</a><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L53-L89">RedirectController</a></td></tr>
+			<tr><td><strong>Sesión de computadora que vence</strong> <span class="tag d">D59</span></td>
+				<td>30 minutos desde el ingreso. Dos minutos antes la página muestra un aviso para extenderla; si nadie responde, el servidor la cierra en el siguiente pedido.</td>
+				<td><a class="code-link" data-code="src/main/java/app/DesktopSession.java#L15-L68">DesktopSession</a><a class="code-link" data-code="src/main/resources/static/session-timer.js#L1-L98">session-timer.js</a></td></tr>
+			<tr><td><strong>Extensión con cuenta</strong> <span class="tag d">D43</span> <span class="tag d">D60</span></td>
+				<td>Acorta al tocar el ícono, sin botón. Si en ese navegador hay sesión y nombre elegido, el enlace queda a tu nombre; si no, es público. Si la página ya estaba acortada, renueva el mismo enlace.</td>
+				<td><a class="code-link" data-code="browser-extension/popup.js#L120-L172">popup.js</a></td></tr>
+		</table>
 	</section>
 
 	<section id="diagrama" class="panel">
 		<h2>Diagrama de clases</h2>
-		<p class="muted legend">Hacé clic en una clase para ver qué hace, por qué está así y el código. Las flechas van de quien <em>usa</em> a quien <em>es usado</em>; la punteada significa "atiende los errores de".</p>
+		<p class="muted legend">Hacé clic en una clase para ver qué hace, por qué está así y el código. Las flechas van de quien <em>usa</em> a quien <em>es usado</em>; la punteada significa "atiende los errores de". Borde rosa: agregado en la Etapa 2.</p>
 		<div class="diagram-wrap">
 			<div class="diagram" id="diagram">
 				<svg id="edges" aria-hidden="true">
@@ -137,11 +175,11 @@
 				<div class="layer http" data-layer="Controladores · traducen HTTP"></div>
 				<div class="layer service" data-layer="Servicios · reglas de negocio"></div>
 				<div class="layer data" data-layer="Modelo, validación y alias"></div>
-				<div class="layer config" data-layer="Base de datos y arranque"></div>
+				<div class="layer config" data-layer="Seguridad, base de datos y arranque"></div>
 			</div>
 			<aside class="panel detail" id="detail" aria-live="polite">
 				<h3>Elegí una clase</h3>
-				<p class="muted">Sugerencia para el coloquio: empezá por <strong>LinkController</strong>, seguí con <strong>LinkService</strong> y terminá en <strong>ShortLink</strong>. Es el mismo camino que recorre un pedido.</p>
+				<p class="muted">Sugerencia para el coloquio: para lo público, <strong>LinkController → LinkService → ShortLink</strong>. Para la Etapa 2, <strong>AccountController → UserService → AppUser</strong> y después <strong>LoginRequestController</strong>.</p>
 			</aside>
 		</div>
 	</section>
@@ -150,84 +188,145 @@
 		<h2>Recorridos paso a paso</h2>
 		<p class="muted">La mejor forma de explicar el backend es seguir un pedido de punta a punta.</p>
 		<div class="tabs" role="tablist">
-			<button role="tab" aria-selected="true" data-tab="post">Crear un enlace (POST)</button>
-			<button role="tab" aria-selected="false" data-tab="get">Abrir un enlace (GET)</button>
-			<button role="tab" aria-selected="false" data-tab="qr">Pedir el QR</button>
-			<button role="tab" aria-selected="false" data-tab="cron">Limpieza diaria</button>
+			<button role="tab" aria-selected="true" data-tab="post">Crear un enlace público</button>
+			<button role="tab" aria-selected="false" data-tab="get">Abrir un enlace</button>
+			<button role="tab" aria-selected="false" data-tab="login">Ingreso por QR</button>
+			<button role="tab" aria-selected="false" data-tab="personal">Enlace personal</button>
+			<button role="tab" aria-selected="false" data-tab="rename">Cambio de nombre</button>
+			<button role="tab" aria-selected="false" data-tab="session">Sesión de computadora</button>
 			<button role="tab" aria-selected="false" data-tab="ext">Extensión</button>
+			<button role="tab" aria-selected="false" data-tab="cron">QR y limpieza</button>
 		</div>
 
 		<div role="tabpanel" data-panel="post">
 			<ol class="steps">
-				<li>La web arma un JSON <code>{"url": "https://..."}</code> y hace <code>fetch</code> a <code>POST /api/v1/links</code> con ruta relativa: funciona igual en local y en el VPS.
-					<br><a class="code-link" data-code="src/main/resources/static/app.js#L89-L111">app.js · shorten</a></li>
-				<li><code>LinkController.shorten</code> recibe el record <code>ShortenRequest</code> y delega en el servicio. No tiene lógica: si mañana hay otra interfaz, la regla no se duplica.
-					<br><a class="code-link" data-code="src/main/java/app/controller/LinkController.java#L47-L51">LinkController.shorten</a></li>
-				<li><code>UrlValidator.validate</code> revisa vacío, largo (2048), esquema <code>http/https</code> y host. Si falla tira <code>InvalidUrlException</code> con un mensaje para el usuario.
+				<li>La web arma <code>{"url": "https://..."}</code> y hace <code>fetch</code> a <code>POST /api/v1/links</code> con ruta relativa: funciona igual en local y en el VPS. No necesita sesión ni token CSRF.
+					<br><a class="code-link" data-code="src/main/resources/static/app.js#L41-L64">app.js · shorten</a></li>
+				<li><code>LinkController.shorten</code> recibe el record <code>ShortenRequest</code> y delega en el servicio. Con <code>reuseExisting</code> (la extensión) primero intenta renovar un enlace vigente a la misma URL y responde 200.
+					<br><a class="code-link" data-code="src/main/java/app/controller/LinkController.java#L49-L59">LinkController.shorten</a></li>
+				<li><code>UrlValidator.validate</code> revisa vacío, largo (2048), esquema <code>http/https</code> y host. Si falla tira <code>InvalidUrlException</code>.
 					<br><a class="code-link" data-code="src/main/java/app/service/UrlValidator.java#L29-L54">UrlValidator</a></li>
-				<li><code>LinkService.shorten</code> pide un alias a <code>AliasGenerator</code> (5 caracteres al azar con <code>SecureRandom</code>) y prueba hasta 10 veces.
-					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L58-L78">LinkService.shorten</a></li>
-				<li>Cada intento corre en <strong>su propia transacción</strong> (<code>TransactionTemplate</code>). <code>tryCreate</code> busca el alias: si está vigente, devuelve <code>null</code> y se prueba otro; si está vencido, lo borra y lo reasigna en la misma transacción.
-					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L81-L96">LinkService.tryCreate</a></li>
-				<li><code>em.persist</code> + <code>em.flush</code> guardan el <code>ShortLink</code>. El alias es la clave primaria: si dos pedidos simultáneos sacan el mismo, la base rechaza al segundo y ese reintenta.
-					<br><a class="code-link" data-code="src/main/java/app/mappings/ShortLink.java#L10-L28">ShortLink (@Entity)</a></li>
-				<li>Se arma la respuesta <code>ShortLinkResponse</code> (nunca se devuelve la entidad) con <code>shortUrl</code>, <code>qrUrl</code> y <code>secondsRemaining</code> redondeado hacia arriba.
-					<br><a class="code-link" data-code="src/main/java/app/dto/ShortLinkResponse.java#L17-L29">ShortLinkResponse.from</a></li>
-				<li>El controlador responde <strong>201 Created</strong> con header <code>Location</code>. Si algo falló, <code>GlobalExceptionHandler</code> lo convierte en 400 o 503 con formato ProblemDetail.
-					<br><a class="code-link" data-code="src/main/java/app/exception/GlobalExceptionHandler.java#L19-L53">GlobalExceptionHandler</a></li>
-				<li>La web muestra el enlace, el QR y programa un temporizador con <code>secondsRemaining</code> para marcarlo como vencido.
-					<br><a class="code-link" data-code="src/main/resources/static/app.js#L45-L66">app.js · showResult</a></li>
+				<li><code>LinkService.shorten</code> junta lo que no se puede usar: los alias vigentes <em>y los nombres de usuario</em> (actuales y reservados), y le pide a <code>AliasGenerator</code> el más corto libre.
+					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L65-L93">LinkService.shorten</a>
+					<a class="code-link" data-code="src/main/java/app/service/AliasGenerator.java#L23-L46">generate + encode</a></li>
+				<li>Cada intento corre en <strong>su propia transacción</strong>. <code>tryCreate</code> vuelve a mirar que nadie haya elegido ese nombre recién; si el alias está vencido, lo borra y lo reasigna.
+					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L95-L115">LinkService.tryCreate</a></li>
+				<li><code>em.persist</code> + <code>em.flush</code>. El alias es la clave primaria: si dos pedidos simultáneos sacan el mismo, la base rechaza al segundo y ese reintenta con el siguiente.
+					<br><a class="code-link" data-code="src/main/java/app/mappings/ShortLink.java#L12-L48">ShortLink (@Entity)</a></li>
+				<li>Respuesta <code>ShortLinkResponse</code> con <code>shortUrl</code>, <code>qrUrl</code> y <code>secondsRemaining</code>; <strong>201 Created</strong> con <code>Location</code>. Los errores pasan por <code>GlobalExceptionHandler</code> (ProblemDetail).
+					<br><a class="code-link" data-code="src/main/java/app/dto/ShortLinkResponse.java#L9-L33">ShortLinkResponse</a>
+					<a class="code-link" data-code="src/main/java/app/exception/GlobalExceptionHandler.java#L18-L57">GlobalExceptionHandler</a></li>
 			</ol>
 		</div>
 
 		<div role="tabpanel" data-panel="get" hidden>
 			<ol class="steps">
-				<li>Alguien abre <code>https://paradigmas6.agustingimenez.ar/k3m9x</code> (o escanea el QR).</li>
-				<li><code>RedirectController</code> atiende <code>/{alias}</code> solo si son 1 a 16 letras o dígitos. Por eso no choca con <code>/api/**</code> ni con <code>/app.js</code> (tiene punto).
-					<br><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L19-L35">RedirectController</a></li>
-				<li><code>LinkService.findLive</code> pasa el alias a minúsculas, lo busca con <code>em.find</code> y lo filtra con <code>isExpired(now)</code>.
-					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L113-L122">LinkService.findLive</a></li>
-				<li><code>ShortLink.isExpired</code>: vigente en <code>[createdAt, expiresAt)</code>. En el minuto 60:00.000 exacto ya venció.
-					<br><a class="code-link" data-code="src/main/java/app/mappings/ShortLink.java#L41-L44">ShortLink.isExpired</a></li>
-				<li>Si está vigente: <strong>302 Found</strong> + <code>Location</code> + <code>Cache-Control: no-store</code>. Si no: <strong>404</strong> con la página "Este enlace expiró o no existe".
-					<br><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L34-L45">redirect()</a></li>
+				<li>Con un solo segmento, <code>/{nombre}</code>, <code>RedirectController.redirect</code> decide en este orden: si es un <strong>usuario</strong>, sirve su página; si es un <strong>nombre anterior reservado</strong>, 302 al nombre nuevo; si no, es un <strong>alias público</strong>.
+					<br><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L53-L70">redirect(nombre)</a></li>
+				<li>No hay ambigüedad porque un alias público nunca puede coincidir con un nombre en uso (D54). El patrón no admite puntos ni barras, así que no choca con <code>/api/**</code> ni con <code>/app.js</code>.</li>
+				<li>Alias público: <code>LinkService.findLive</code> lo busca y lo filtra con <code>isExpired(now)</code>, vigente en <code>[createdAt, expiresAt)</code>.
+					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L154-L179">resolve + findLive</a></li>
+				<li>Con dos segmentos, <code>/{usuario}/{alias}</code>, va a <code>redirectPersonal</code>: busca el enlace del usuario. Si no está, prueba si <code>{usuario}</code> es el nombre anterior reservado de alguien y muestra el aviso "Este enlace cambió de dirección".
+					<br><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L72-L89">redirectPersonal</a></li>
+				<li>Vigente: <strong>302 Found</strong> + <code>Cache-Control: no-store</code>. Si no: <strong>404</strong> con la misma página para vencido e inexistente.
+					<br><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L91-L105">redirectOrNotAvailable</a></li>
 			</ol>
 		</div>
 
-		<div role="tabpanel" data-panel="qr" hidden>
+		<div role="tabpanel" data-panel="login" hidden>
 			<ol class="steps">
-				<li>La web y la extensión ponen en un <code>&lt;img&gt;</code> la <code>qrUrl</code> que vino en la respuesta: <code>/api/v1/links/{alias}/qr</code>.</li>
-				<li><code>LinkController.qr</code> valida el tamaño (128 a 1024) y, con <code>?download=true</code>, agrega <code>Content-Disposition</code> para descargar <code>{alias}.png</code>.
-					<br><a class="code-link" data-code="src/main/java/app/controller/LinkController.java#L60-L78">LinkController.qr</a></li>
-				<li><code>QrService.qrFor</code> usa la misma regla <code>findLive</code>: un enlace vencido no tiene QR (404).
-					<br><a class="code-link" data-code="src/main/java/app/service/QrService.java#L41-L50">QrService.qrFor</a></li>
-				<li>ZXing genera el PNG con corrección de errores M (~15 %) y margen 2. El contenido es siempre la URL <em>corta</em>, armada con <code>app.base-url</code>, nunca con datos del pedido.
-					<br><a class="code-link" data-code="src/main/java/app/service/QrService.java#L29-L64">QrService.generatePng</a></li>
+				<li>La computadora abre <code>/login.html</code> y pide un código: <code>POST /api/v1/login-requests</code>. El servidor descarta el código anterior de esa sesión, crea uno de 32 bytes aleatorios que dura 60 s y lo guarda <strong>en la sesión de la computadora</strong>.
+					<br><a class="code-link" data-code="src/main/java/app/controller/LoginRequestController.java#L66-L75">create</a>
+					<a class="code-link" data-code="src/main/java/app/service/LoginRequestService.java#L55-L77">create + discard</a></li>
+				<li>La página muestra el QR de <code>/l/{código}</code> y consulta el estado cada 2 s. Si el código vence, pide otro solo (hasta 10 seguidos).
+					<br><a class="code-link" data-code="src/main/resources/static/login.js#L57-L119">login.js</a></li>
+				<li>El celular abre el QR. Sin sesión, Spring Security lo manda a Google; con sesión, ve "Confirmar ingreso" y aprueba: <code>POST /api/v1/login-requests/{código}/approve</code> con token CSRF.
+					<br><a class="code-link" data-code="src/main/resources/static/confirmar-ingreso.js#L21-L43">confirmar-ingreso.js</a>
+					<a class="code-link" data-code="src/main/java/app/service/LoginRequestService.java#L88-L107">approve</a></li>
+				<li>En la siguiente consulta, <code>poll</code> consume la aprobación una sola vez (UPDATE condicional) y <code>signIn</code> inicia la sesión con un id nuevo (contra <em>session fixation</em>) y le pone vencimiento de computadora.
+					<br><a class="code-link" data-code="src/main/java/app/service/LoginRequestService.java#L109-L128">poll</a>
+					<a class="code-link" data-code="src/main/java/app/controller/LoginRequestController.java#L95-L131">status + signIn</a></li>
+				<li>Por qué es seguro: el código solo sirve en la sesión que lo pidió. Alguien que fotografía el QR y lo aprueba no gana nada: la sesión que entra es la de la computadora que lo mostró.</li>
 			</ol>
 		</div>
 
-		<div role="tabpanel" data-panel="cron" hidden>
+		<div role="tabpanel" data-panel="personal" hidden>
 			<ol class="steps">
-				<li><code>@EnableScheduling</code> en <code>Application</code> activa las tareas programadas.
-					<br><a class="code-link" data-code="src/main/java/app/Application.java#L16-L18">Application</a></li>
-				<li>Todos los días a las 3:00 (<code>app.cleanup.cron=0 0 3 * * *</code>) corre <code>purgeExpired</code>: un <code>delete</code> HQL de los vencidos.
-					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L124-L138">LinkService.purgeExpired</a>
-					<a class="code-link" data-code="src/main/resources/application.properties#L13">cron</a></li>
-				<li>Importante: la limpieza <strong>solo libera espacio</strong>. Que un vencido no redirija ya lo garantiza <code>findLive</code> en cada lectura.</li>
+				<li>En su página (<code>/{usuario}</code>) el usuario pega la URL y, si quiere, un alias. La página manda <code>POST /api/v1/me/links</code> con el token CSRF.
+					<br><a class="code-link" data-code="src/main/resources/static/cuenta.js#L153-L181">cuenta.js</a>
+					<a class="code-link" data-code="src/main/resources/static/session.js#L1-L21">session.js · sendJson</a></li>
+				<li><code>AccountController.createLink</code> exige sesión. Con <code>reuseExisting</code> (la extensión) renueva un enlace vigente a la misma URL.
+					<br><a class="code-link" data-code="src/main/java/app/controller/AccountController.java#L74-L92">createLink</a></li>
+				<li><code>PersonalLinkService.create</code> exige un nombre elegido (409 si todavía tiene el aleatorio). Sin alias usa el más corto libre <em>de ese usuario</em>, con el mismo <code>AliasGenerator</code> de los públicos.
+					<br><a class="code-link" data-code="src/main/java/app/service/PersonalLinkService.java#L57-L84">create</a>
+					<a class="code-link" data-code="src/main/java/app/service/PersonalLinkService.java#L132-L141">freeAlias</a></li>
+				<li><code>PersonalLink</code> apunta al <strong>usuario</strong> (<code>@ManyToOne owner</code>), no a su nombre, y es único por <code>(dueño, alias)</code>. Por eso al cambiar el nombre los enlaces lo siguen sin tocar ninguna fila.
+					<br><a class="code-link" data-code="src/main/java/app/mappings/PersonalLink.java#L24-L73">PersonalLink</a></li>
+				<li>El alias se puede cambiar después con <code>PATCH /api/v1/me/links/{alias}</code>: mismo destino y mismo vencimiento.
+					<br><a class="code-link" data-code="src/main/java/app/service/PersonalLinkService.java#L86-L110">rename</a></li>
+			</ol>
+		</div>
+
+		<div role="tabpanel" data-panel="rename" hidden>
+			<ol class="steps">
+				<li>El usuario cambia su nombre en el perfil: <code>PUT /api/v1/me/username</code>.
+					<br><a class="code-link" data-code="src/main/java/app/controller/AccountController.java#L61-L72">chooseUsername</a></li>
+				<li><code>UserService.chooseUsername</code> valida formato y reservados, libera reservas vencidas y comprueba que el nombre esté libre: no puede ser de otro usuario, ni el anterior reservado de otro, ni el alias de un enlace público vigente.
+					<br><a class="code-link" data-code="src/main/java/app/service/UserService.java#L117-L151">chooseUsername</a>
+					<a class="code-link" data-code="src/main/java/app/service/UserService.java#L180-L189">checkAvailable</a></li>
+				<li><code>AppUser.rename</code> guarda el nombre actual en <code>previousUsername</code> con su hora de liberación (ahora + 10 min). Las dos columnas tienen índice único: la base impide que dos cuentas tengan el mismo nombre en cualquiera de las dos.
+					<br><a class="code-link" data-code="src/main/java/app/mappings/AppUser.java#L29-L44">columnas</a>
+					<a class="code-link" data-code="src/main/java/app/mappings/AppUser.java#L66-L76">rename</a></li>
+				<li>Durante la gracia solo se puede <strong>volver</strong> al nombre anterior; otro cambio da 409 (<code>UsernameChangeLockedException</code>) con la hora de liberación. La página muestra la reserva, la hora y el botón para volver.
+					<br><a class="code-link" data-code="src/main/java/app/exception/GlobalExceptionHandler.java#L73-L82">409</a>
+					<a class="code-link" data-code="src/main/resources/static/cuenta.js#L62-L107">cuenta.js · reserva</a></li>
+				<li>Mientras tanto, <code>/{anterior}/{alias}</code> responde la página de aviso con la dirección nueva y sigue al destino a los 8 s, y <code>/{anterior}</code> lleva a <code>/{nuevo}</code>.
+					<br><a class="code-link" data-code="src/main/java/app/service/PersonalLinkService.java#L156-L171">findMoved</a>
+					<a class="code-link" data-code="src/main/resources/static/enlace-movido.js#L1-L31">enlace-movido.js</a></li>
+				<li>Al terminar los 10 minutos, las lecturas ya no lo ven reservado (comparan con <code>now</code>) y la limpieza programada borra la columna. El nombre anterior da 404 y otra persona puede tomarlo.
+					<br><a class="code-link" data-code="src/main/java/app/service/UserService.java#L153-L178">liberación</a></li>
+			</ol>
+		</div>
+
+		<div role="tabpanel" data-panel="session" hidden>
+			<ol class="steps">
+				<li>Al entrar por QR, o con Google desde un navegador de escritorio, se guarda en la sesión del servidor la hora de vencimiento (ahora + 30 min). En el celular no hay límite.
+					<br><a class="code-link" data-code="src/main/java/app/DesktopSession.java#L37-L59">DesktopSession</a>
+					<a class="code-link" data-code="src/main/java/app/SecurityConfig.java#L58-L64">al entrar con Google</a></li>
+				<li>Un filtro propio corre antes de autorizar cada pedido: si la sesión venció, la invalida y el pedido sigue como anónimo (la API responde 401).
+					<br><a class="code-link" data-code="src/main/java/app/SecurityConfig.java#L89-L108">DesktopSessionFilter</a></li>
+				<li>La página consulta <code>GET /api/v1/me/session</code> y cuenta hacia atrás con los segundos que informa el servidor, no con la hora del dispositivo.
+					<br><a class="code-link" data-code="src/main/java/app/controller/AccountController.java#L113-L124">session + extend</a></li>
+				<li>Faltando 2 minutos abre un <code>&lt;dialog&gt;</code> con "Extender sesión" (<code>POST /api/v1/me/session/extend</code>, 30 min más) o "Cerrar sesión". Si llega a 0, lleva al ingreso con un aviso.
+					<br><a class="code-link" data-code="src/main/resources/static/session-timer.js#L31-L67">session-timer.js</a></li>
 			</ol>
 		</div>
 
 		<div role="tabpanel" data-panel="ext" hidden>
 			<ol class="steps">
-				<li>La web ofrece el zip en <code>/descargas/acortador-pp6.zip</code>. Gradle lo arma en cada build desde <code>browser-extension/</code>.
-					<br><a class="code-link" data-code="build.gradle#L82-L96">build.gradle · extensionZip</a></li>
-				<li><code>ExtensionController</code> reescribe <code>config.js</code> dentro del zip con <code>app.base-url</code>: la extensión bajada del VPS llama al VPS, la bajada en local llama a localhost.
+				<li>La web ofrece el zip en <code>/descargas/acortador-pp6.zip</code>. El servidor reescribe <code>config.js</code> con su dominio: la extensión bajada del VPS llama al VPS.
 					<br><a class="code-link" data-code="src/main/java/app/controller/ExtensionController.java#L35-L67">ExtensionController</a></li>
-				<li>El popup lee la pestaña activa con el permiso <code>activeTab</code>. Si no es http/https, deshabilita el botón con un aviso (C10).
-					<br><a class="code-link" data-code="browser-extension/popup.js#L121-L136">popup.js · init</a></li>
-				<li>Al tocar ACORTAR llama a la misma API. Como viene de otro origen (<code>chrome-extension://</code>), el backend habilita CORS solo para <code>/api/**</code> y solo para extensiones.
-					<br><a class="code-link" data-code="browser-extension/popup.js#L92-L119">popup.js · shorten</a>
-					<a class="code-link" data-code="src/main/java/app/Application.java#L35-L47">CORS</a></li>
+				<li>Al tocar el ícono, el popup lee la pestaña activa (permiso <code>activeTab</code>). Si no es http/https, o ya es un enlace corto propio, avisa y no acorta.
+					<br><a class="code-link" data-code="browser-extension/popup.js#L173-L189">popup.js · init</a></li>
+				<li>Pregunta <code>GET /api/v1/me</code> con la cookie del navegador. Con sesión y nombre elegido crea un enlace <strong>personal</strong>; si no hay sesión o da 401, uno <strong>público</strong>. El popup dice cuál.
+					<br><a class="code-link" data-code="browser-extension/popup.js#L120-L172">popup.js · shorten</a></li>
+				<li>El backend permite CORS <em>con credenciales</em> solo en <code>/api/v1/me/**</code> y solo para orígenes <code>chrome-extension://</code> y <code>moz-extension://</code>. Ese POST se acepta sin token CSRF solo si el <code>Origin</code> es de una extensión: una página web no puede falsificar ese encabezado.
+					<br><a class="code-link" data-code="src/main/java/app/Application.java#L35-L55">CORS</a>
+					<a class="code-link" data-code="src/main/java/app/SecurityConfig.java#L68-L87">CSRF + fromExtension</a></li>
+			</ol>
+		</div>
+
+		<div role="tabpanel" data-panel="cron" hidden>
+			<ol class="steps">
+				<li>El QR de un enlace se pide en <code>/api/v1/links/{alias}/qr</code> (o <code>/api/v1/users/{usuario}/links/{alias}/qr</code>). Usa la misma regla <code>findLive</code>: un enlace vencido no tiene QR.
+					<br><a class="code-link" data-code="src/main/java/app/controller/LinkController.java#L68-L86">LinkController.qr</a>
+					<a class="code-link" data-code="src/main/java/app/service/QrService.java#L50-L69">QrService</a></li>
+				<li>ZXing genera el PNG con corrección de errores M. El contenido es siempre la URL corta armada con <code>app.base-url</code>, nunca con datos del pedido.</li>
+				<li>Todos los días a las 3:00 (<code>app.cleanup.cron</code>) cada servicio borra lo suyo: enlaces públicos y personales vencidos, códigos de ingreso vencidos y reservas de nombre terminadas.
+					<br><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L181-L189">enlaces</a>
+					<a class="code-link" data-code="src/main/java/app/service/LoginRequestService.java#L130-L138">códigos</a>
+					<a class="code-link" data-code="src/main/java/app/service/UserService.java#L153-L160">nombres</a></li>
+				<li>Importante: la limpieza <strong>solo libera espacio</strong>. Que algo vencido no funcione ya lo garantiza cada lectura comparando con <code>now</code>.</li>
 			</ol>
 		</div>
 	</section>
@@ -236,49 +335,56 @@
 		<h2>Por qué usamos esto</h2>
 		<div class="grid2">
 			<div class="card"><h3>Spring Boot + JPA/Hibernate</h3>
-				<p>Lo exige la consigna. Usamos <code>EntityManager</code> directo en el servicio, como en el proyecto del profe: <code>persist</code>, <code>find</code>, <code>remove</code> y un <code>delete</code> HQL.</p>
+				<p>Lo exige la consigna. Usamos <code>EntityManager</code> directo en los servicios, como en el proyecto del profe: <code>persist</code>, <code>find</code>, <code>remove</code> y consultas JPQL.</p>
 				<p class="alt">Alternativa: repositorios de Spring Data. Ocultan las consultas; con <code>EntityManager</code> se ve qué hace cada operación.</p>
-				<span class="tag">Consigna</span><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L29-L30">EntityManager</a></div>
+				<span class="tag">Consigna</span><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L27-L57">LinkService</a></div>
 			<div class="card"><h3>HSQLDB en modo archivo</h3>
-				<p>Base relacional embebida: no hay que instalar nada y los datos sobreviven a un reinicio (<code>./data/shortener</code>). Es el motor que usa la cátedra.</p>
-				<p class="alt">Alternativa: PostgreSQL. Más real, pero obliga a instalar o usar Docker para correr y testear.</p>
-				<span class="tag c">C13</span><span class="tag c">C16</span><a class="code-link" data-code="src/main/resources/application.properties#L15-L19">datasource</a></div>
-			<div class="card"><h3>Alias de 5 caracteres al azar</h3>
-				<p>Alfabeto de 31 símbolos sin <code>0 o 1 l i</code> (se confunden al dictarlos): 31⁵ ≈ 28,6 millones de combinaciones. Al azar con <code>SecureRandom</code>, para que no se puedan adivinar los enlaces de otros.</p>
-				<p class="alt">Alternativa: secuencial (<code>/1</code>, <code>/2</code>…). Más corto, pero cualquiera recorre <code>/1…/1000</code> y ve carpetas de Drive ajenas.</p>
-				<span class="tag c">C2</span><span class="tag d">D8</span><a class="code-link" data-code="src/main/resources/application.properties#L8-L11">app.alias.*</a></div>
+				<p>Base relacional embebida: no hay que instalar nada y los datos sobreviven a un reinicio. Hibernate crea y ajusta las cuatro tablas desde las entidades (<code>ddl-auto=update</code>).</p>
+				<p class="alt">Alternativa: PostgreSQL. Más real, pero obliga a instalarlo o usar Docker para correr y testear.</p>
+				<span class="tag c">C13</span><span class="tag c">C16</span><a class="code-link" data-code="src/main/resources/application.properties#L41-L48">datasource</a></div>
+			<div class="card"><h3>Alias secuencial más corto</h3>
+				<p>El Cliente pidió URLs lo más cortas posible y aclaró que no hay requisito de seguridad. El menor número libre en base 33 (sin <code>i l o</code>): 32 alias de un carácter y 1056 de dos.</p>
+				<p class="alt">Etapa 1: 5 caracteres al azar. Se cambió por pedido explícito; el costo es que los alias son predecibles.</p>
+				<span class="tag d">D8</span><span class="tag new">Etapa 2</span><a class="code-link" data-code="src/main/resources/application.properties#L8-L12">app.alias.*</a></div>
 			<div class="card"><h3>Vencimiento evaluado al leer</h3>
-				<p><code>isExpired(now)</code> se pregunta en cada redirección y en cada QR. El reloj (<code>Clock</code>) se inyecta, así los tests "adelantan el tiempo" sin esperar 60 minutos.</p>
-				<p class="alt">Alternativa: que solo una tarea programada borre vencidos. Entre dos corridas, un vencido seguiría redirigiendo.</p>
-				<span class="tag c">C5</span><span class="tag d">D2</span><a class="code-link" data-code="src/main/java/app/Application.java#L26-L33">Clock</a></div>
+				<p><code>isExpired(now)</code> en cada redirección, QR, código de ingreso y reserva de nombre. El reloj (<code>Clock</code>) se inyecta, así los tests "adelantan el tiempo" sin esperar.</p>
+				<p class="alt">Alternativa: que solo una tarea programada borre vencidos. Entre dos corridas, algo vencido seguiría funcionando.</p>
+				<span class="tag c">C5</span><span class="tag d">D2</span><a class="code-link" data-code="src/main/java/app/Application.java#L25-L33">Clock</a></div>
+			<div class="card"><h3>Google + QR en vez de usuario y contraseña</h3>
+				<p>No guardamos contraseñas: Google valida la identidad (OIDC) y Spring Security hace el flujo. La computadora no escribe nada: escanea con el celular, que ya tiene la sesión.</p>
+				<p class="alt">El código del QR vive en la sesión de la computadora que lo pidió y dura 60 s: fotografiarlo no sirve.</p>
+				<span class="tag d">D50</span><span class="tag d">D51</span><span class="tag new">Etapa 2</span><a class="code-link" data-code="src/main/java/app/service/LoginRequestService.java#L55-L128">LoginRequestService</a></div>
+			<div class="card"><h3>CSRF con cookie</h3>
+				<p>Con sesión por cookie, otra página podría disparar un POST en nombre del usuario. El token va en la cookie <code>XSRF-TOKEN</code> y el JS lo devuelve en <code>X-XSRF-TOKEN</code>. Acortar un enlace público sigue sin token porque no usa sesión.</p>
+				<span class="tag d">D52</span><span class="tag new">Etapa 2</span><a class="code-link" data-code="src/main/java/app/SecurityConfig.java#L68-L78">csrf</a><a class="code-link" data-code="src/main/resources/static/session.js#L1-L21">session.js</a></div>
+			<div class="card"><h3>Los enlaces apuntan al usuario, no al nombre</h3>
+				<p><code>PersonalLink</code> tiene una clave foránea al <code>AppUser</code>. Cambiar el nombre no toca ningún enlace: todos pasan a <code>/{nuevo}/…</code> solos.</p>
+				<p class="alt">Alternativa: guardar el nombre en cada enlace. Habría que actualizar todas las filas y se rompería la integridad.</p>
+				<span class="tag d">D48</span><span class="tag new">Etapa 2</span><a class="code-link" data-code="src/main/java/app/mappings/PersonalLink.java#L24-L60">PersonalLink</a></div>
+			<div class="card"><h3>Período de gracia: solo se puede volver</h3>
+				<p>El nombre anterior queda reservado 10 minutos para la misma cuenta. Mientras tanto no se puede pasar a un tercer nombre, así nadie acapara varios encadenando cambios.</p>
+				<p class="alt">Es una suposición nuestra que el Cliente puede cambiar; está marcada en D55.</p>
+				<span class="tag d">D55</span><span class="tag new">Etapa 2</span><a class="code-link" data-code="src/main/java/app/service/UserService.java#L117-L151">chooseUsername</a></div>
 			<div class="card"><h3>Alias como clave primaria + <code>persist</code></h3>
-				<p>La base garantiza que no haya dos enlaces con el mismo alias, aun con pedidos simultáneos. <code>persist</code> nunca sobrescribe; <code>merge</code> pisaría en silencio un enlace vigente.</p>
-				<p class="alt">Por eso cada intento va en su transacción: tras un error de clave, la sesión de Hibernate queda inutilizable.</p>
-				<span class="tag d">D6</span><span class="tag d">D11</span><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L54-L96">reintentos</a></div>
+				<p>La base garantiza que no haya dos enlaces con el mismo alias, aun con pedidos simultáneos. Lo mismo para los nombres de usuario y <code>(dueño, alias)</code> de los personales.</p>
+				<p class="alt">Por eso cada intento público va en su transacción: tras un error de clave, la sesión de Hibernate queda inutilizable.</p>
+				<span class="tag d">D6</span><span class="tag d">D11</span><a class="code-link" data-code="src/main/java/app/service/LinkService.java#L59-L115">reintentos</a></div>
 			<div class="card"><h3>302 y nunca 301</h3>
 				<p>Un 301 es "permanente": el navegador lo guarda en caché y seguiría redirigiendo después del vencimiento. Además mandamos <code>Cache-Control: no-store</code>.</p>
-				<p class="alt">307 no aporta nada: la redirección siempre es un GET.</p>
-				<span class="tag d">D20</span><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L36-L40">302</a></div>
+				<span class="tag d">D20</span><a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L91-L98">302</a></div>
 			<div class="card"><h3>QR generado en el backend (ZXing)</h3>
-				<p>Un solo lugar que genera y prueba el QR, y lo usan la web y la extensión. El test lo decodifica para comprobar que contiene la URL corta.</p>
-				<p class="alt">Alternativa: librería JavaScript en cada cliente. Duplica código en dos lugares que hay que probar.</p>
-				<span class="tag c">C11</span><span class="tag d">D21</span><a class="code-link" data-code="src/main/java/app/service/QrService.java#L21-L50">QrService</a></div>
+				<p>Un solo lugar que genera y prueba el QR, y lo usan la web, la extensión y el ingreso por QR. Los tests decodifican el PNG para comprobar su contenido.</p>
+				<span class="tag c">C11</span><span class="tag d">D21</span><a class="code-link" data-code="src/main/java/app/service/QrService.java#L25-L69">QrService</a></div>
 			<div class="card"><h3>Errores con ProblemDetail (RFC 7807)</h3>
-				<p>Todas las respuestas de error de la API tienen la misma forma (<code>title</code>, <code>status</code>, <code>detail</code>). El cliente muestra <code>detail</code> tal cual.</p>
-				<p class="alt">El handler se limita a <code>LinkController</code> para que el 404 de la redirección siga siendo una página HTML.</p>
-				<span class="tag d">D26</span><a class="code-link" data-code="src/main/java/app/exception/GlobalExceptionHandler.java#L15-L28">handler</a></div>
-			<div class="card"><h3>DTOs como <code>record</code></h3>
-				<p><code>ShortenRequest</code> y <code>ShortLinkResponse</code> separan el contrato de la API de la entidad. Si cambia la tabla, la API no cambia.</p>
-				<span class="tag d">D28</span><a class="code-link" data-code="src/main/java/app/dto/ShortLinkResponse.java#L1-L30">ShortLinkResponse</a></div>
-			<div class="card"><h3>CORS solo para la extensión</h3>
-				<p>La web está en el mismo origen y no lo necesita. Se habilita solo <code>/api/**</code>, solo para <code>chrome-extension://*</code> y <code>moz-extension://*</code>, sin credenciales.</p>
-				<span class="tag d">D45</span><a class="code-link" data-code="src/main/java/app/Application.java#L35-L47">addCorsMappings</a></div>
+				<p>Todas las respuestas de error de la API tienen la misma forma (<code>title</code>, <code>status</code>, <code>detail</code>) y el mensaje en español; las páginas muestran <code>detail</code> tal cual.</p>
+				<p class="alt">El handler se limita a los controladores de la API para que la redirección siga devolviendo HTML.</p>
+				<span class="tag d">D26</span><a class="code-link" data-code="src/main/java/app/exception/GlobalExceptionHandler.java#L18-L24">handler</a></div>
 			<div class="card"><h3>Configuración en <code>application.properties</code></h3>
-				<p>Duración, largo y alfabeto del alias, palabras reservadas, intentos y cron se cambian sin tocar código. En el VPS, <code>APP_BASE_URL</code> pisa el dominio: el mismo JAR corre en los dos lados.</p>
-				<span class="tag c">C20</span><a class="code-link" data-code="src/main/resources/application.properties#L1-L13">properties</a></div>
+				<p>Duración de enlaces, alfabeto, reservados, vigencia del QR, duración de la sesión, aviso y período de gracia se cambian sin tocar código; en el VPS, con variables de entorno.</p>
+				<span class="tag c">C20</span><a class="code-link" data-code="src/main/resources/application.properties#L1-L39">properties</a></div>
 			<div class="card"><h3>Swagger / OpenAPI</h3>
-				<p>springdoc genera el contrato desde las anotaciones <code>@Operation</code> y <code>@ApiResponse</code> del controlador. Se ve en <a href="/swagger-ui.html">/swagger-ui.html</a>.</p>
-				<span class="tag">Consigna</span><a class="code-link" data-code="src/main/java/app/controller/LinkController.java#L41-L48">anotaciones</a></div>
+				<p>springdoc genera el contrato desde las anotaciones <code>@Operation</code> y <code>@ApiResponse</code>. Se ve en <a href="/swagger-ui.html">/swagger-ui.html</a>.</p>
+				<span class="tag">Consigna</span><a class="code-link" data-code="src/main/java/app/controller/AccountController.java#L53-L72">anotaciones</a></div>
 		</div>
 	</section>
 
@@ -287,33 +393,37 @@
 		<p>La consigna pone el foco en especificar, validar y asegurar la calidad de lo que genera la IA. Esto hicimos:</p>
 		<div class="grid2">
 			<div class="card"><h3>1. Especificar antes de generar</h3>
-				<p><code>contexto.md</code> junta las respuestas del Cliente (C1–C20) y las decisiones del equipo (D1–D45) con su motivo. A la IA se le pedía trabajar contra esa especificación, y el código cita los códigos (por ejemplo <code>D20</code> en <code>RedirectController</code>).</p></div>
-			<div class="card"><h3>2. Tests primero (TDD)</h3>
-				<p>Los tests se escribían antes del código y tenían que fallar. Los nombres siguen los grupos del plan de pruebas (A resolución, B validación, C creación, E limpieza, F QR).</p>
-				<a class="code-link" data-code="src/test/java/app/service/LinkServiceTest.java">LinkServiceTest</a></div>
+				<p><code>contexto.md</code> junta las respuestas del Cliente (C1–C20) y las decisiones (D1–D60) con su motivo. Los pedidos de la Etapa 2 entraron como decisiones nuevas antes de tocar código, y el código cita los códigos (por ejemplo <code>D54</code> en <code>RedirectController</code>).</p></div>
+			<div class="card"><h3>2. Tests de cada regla</h3>
+				<p>Cada pedido de la Etapa 2 tiene tests que describen el comportamiento: reserva del nombre, bloqueo de un tercer nombre, liberación, aviso del enlace movido, QR descartado, sesión que vence y CORS de la extensión.</p>
+				<a class="code-link" data-code="src/test/java/app/controller/AccountAndLoginTest.java">AccountAndLoginTest</a>
+				<a class="code-link" data-code="src/test/java/app/service/UserServiceTest.java">UserServiceTest</a></div>
 			<div class="card"><h3>3. Pruebas de mutación</h3>
-				<p>Para saber si un test sirve, se rompía el código a propósito (por ejemplo, se quitaba una validación) y se comprobaba que el test fallara. Un test que nunca falla no protege nada.</p></div>
+				<p>Para saber si un test sirve, se rompía el código a propósito y se comprobaba que el test fallara. Un test que nunca falla no protege nada.</p></div>
 			<div class="card"><h3>4. Probar de verdad, no solo con tests</h3>
-				<p>Cada paso se probó levantando la app y en el VPS con <code>curl</code>: 201, 302, 404, QR <code>image/png</code> y preflight de CORS.</p></div>
+				<p>Cada despliegue se probó en el VPS con <code>curl</code> (páginas, 401 sin sesión, 302, preflight CORS con credenciales) y con capturas del navegador, con copia de la base y del JAR antes de cada cambio.</p></div>
 		</div>
 		<h3>Errores concretos que se le escaparon a la IA (y cómo los encontramos)</h3>
 		<table>
 			<tr><th>Qué pasó</th><th>Cómo se detectó</th><th>Corrección</th></tr>
 			<tr><td><code>secondsRemaining</code> devolvía 3599 en vez de 3600, y en el último segundo habría mostrado 0 con el enlace vigente.</td>
 				<td>Probando en el VPS. Los tests no lo vieron porque usaban un reloj fijo.</td>
-				<td>Primero un test que fallaba; después redondeo hacia arriba. <a class="code-link" data-code="src/main/java/app/dto/ShortLinkResponse.java#L17-L20">ceilDiv</a></td></tr>
+				<td>Primero un test que fallaba; después redondeo hacia arriba. <a class="code-link" data-code="src/main/java/app/dto/ShortLinkResponse.java#L27-L33">ceilDiv</a></td></tr>
+			<tr><td>Al desplegar <code>main</code> desaparecieron <code>/coloquio</code> y la descarga de la extensión.</td>
+				<td>Probando el sitio después del despliegue: esos commits estaban solo en <code>dev/agustin</code>.</td>
+				<td>Se integró <code>main</code> en la rama, resolviendo el conflicto en <code>application.properties</code>, y se volvió a desplegar.</td></tr>
+			<tr><td>Un enlace público podía salir igual al nombre de un usuario (<code>/agustin</code>).</td>
+				<td>Comentario de revisión del Cliente ("que el link aleatorio público no genere el nombre de usuario").</td>
+				<td>El generador saltea los nombres en uso y lo vuelve a comprobar en la transacción del alta, con test. <a class="code-link" data-code="src/main/java/app/service/LinkService.java#L95-L100">tryCreate</a></td></tr>
+			<tr><td>Los enlaces personales sin alias salían con 6 letras al azar, distinto de los públicos.</td>
+				<td>Captura del Cliente: pidió que usen la misma función que <code>/1</code>, <code>/2</code>.</td>
+				<td>Se reutiliza <code>AliasGenerator</code> con los alias del usuario. <a class="code-link" data-code="src/main/java/app/service/PersonalLinkService.java#L132-L141">freeAlias</a></td></tr>
 			<tr><td>El botón "Descargar QR" seguía visible con el atributo <code>hidden</code>.</td>
 				<td>Captura del navegador: una clase CSS con <code>display</code> le ganaba a <code>hidden</code>.</td>
 				<td>Regla <code>[hidden] { display: none !important; }</code> y un test que la verifica.</td></tr>
-			<tr><td>La extensión de <code>main</code> apuntaba a <code>localhost:8080</code>: bajada desde el sitio no funcionaba.</td>
-				<td>Revisando el zip descargado del VPS.</td>
-				<td>El servidor reescribe <code>config.js</code> con su propio dominio. <a class="code-link" data-code="src/main/java/app/controller/ExtensionController.java#L47-L67">withApiBaseUrl</a></td></tr>
 			<tr><td><code>/coloquio</code> respondía "Este enlace expiró o no existe".</td>
 				<td>La ruta cumple el patrón del alias.</td>
-				<td>Ruta explícita, test y palabra reservada.</td></tr>
-			<tr><td>La bitácora afirmaba que el dominio "no usaba JPA", y era falso.</td>
-				<td>Revisión humana contra el código (<code>ShortLink</code> usa <code>jakarta.persistence</code>).</td>
-				<td>Se corrigió el texto. Lección: lo que escribe la IA también se verifica.</td></tr>
+				<td>Ruta explícita, test y palabra reservada (también para nombres de usuario).</td></tr>
 		</table>
 	</section>
 
@@ -321,47 +431,50 @@
 		<h2>Lo que hay que decir antes de que lo encuentre el profe</h2>
 		<p class="callout">Reconocer un límite y explicar cómo se resolvería suma más que esconderlo.</p>
 		<ul>
-			<li><strong>La extensión no acorta sola al abrirse:</strong> espera que se toque ACORTAR. La consigna dice "con solo tocarlo genere y muestre". Arreglarlo es llamar a <code>shorten()</code> al final de <code>init()</code>. <a class="code-link" data-code="browser-extension/popup.js#L132-L135">popup.js</a></li>
+			<li><strong>Alias predecibles:</strong> con <code>/1</code>, <code>/2</code>… cualquiera puede recorrer los enlaces públicos. El Cliente lo aceptó explícitamente (sin requisito de seguridad).</li>
+			<li><strong>Sesiones en memoria:</strong> Tomcat guarda las sesiones en memoria; al reiniciar el servidor todos tienen que volver a entrar. Para varios servidores haría falta Spring Session con una base.</li>
+			<li><strong>La extensión depende de la cookie:</strong> crea enlaces personales si el navegador le manda la cookie de sesión (<code>SameSite=Lax</code>) por tener permiso sobre el sitio. Si un navegador no lo hace, crea enlaces públicos como antes.</li>
+			<li><strong>Computadora o celular por User-Agent:</strong> el límite de 30 minutos se decide por el encabezado <code>User-Agent</code>, que se puede cambiar. Solo afecta la duración de la propia sesión, no da acceso a nada.</li>
+			<li><strong>Gracia de nombre:</strong> "solo se puede volver" es una suposición nuestra (D55); si el Cliente quiere otra regla, se cambia en <code>UserService.chooseUsername</code>.</li>
 			<li><strong><code>@Autowired</code> en campos:</strong> sigue el estilo del proyecto del profe, pero la inyección por constructor permite campos <code>final</code> y tests sin Spring.</li>
-			<li><strong><code>QrService</code> depende de <code>LinkService</code>:</strong> reutiliza la regla <code>findLive</code> y <code>shortUrl</code> en vez de duplicarla. Es un acoplamiento consciente.</li>
-			<li><strong><code>ddl-auto=update</code>:</strong> Hibernate crea y ajusta la tabla. Para producción real convendrían migraciones versionadas (Flyway).</li>
-			<li><strong>Sin límite de pedidos por IP:</strong> la API es pública (C14). Con tráfico real, alguien podría llenar la base.</li>
-			<li><strong>Borrado físico, sin historial:</strong> el Cliente no pidió estadísticas (C7). Si la Etapa 2 pide métricas, habrá que guardar los enlaces en vez de borrarlos.</li>
-			<li><strong>Documentación de diseño:</strong> los ADR y la bitácora de prompts se sacaron de <code>main</code> al reorganizar, pero siguen en el historial de git.</li>
+			<li><strong><code>ddl-auto=update</code>:</strong> Hibernate agregó solo las columnas nuevas de la Etapa 2. Para producción real convendrían migraciones versionadas (Flyway).</li>
+			<li><strong>Sin límite de pedidos por IP:</strong> la API pública podría usarse para llenar la base.</li>
 		</ul>
 	</section>
 
 	<section id="preguntas" class="panel">
 		<h2>Preguntas probables</h2>
+		<details class="qa"><summary>¿Cómo distinguen <code>/agustin</code> (usuario) de <code>/4</code> (enlace público)?</summary>
+			<p><code>RedirectController</code> pregunta primero si es un usuario, después si es un nombre anterior reservado y por último si es un alias. Nunca hay empate porque el generador de alias públicos saltea los nombres en uso y nadie puede elegir como nombre un alias vigente. <a class="code-link" data-code="src/main/java/app/controller/RedirectController.java#L53-L70">ver</a></p></details>
+		<details class="qa"><summary>¿Qué pasa si alguien fotografía el QR de ingreso?</summary>
+			<p>No le sirve: el código está guardado en la sesión de la computadora que lo pidió, así que aprobarlo inicia esa sesión, no la del que sacó la foto. Además dura 60 s y al pedir uno nuevo el anterior se borra. <a class="code-link" data-code="src/main/java/app/controller/LoginRequestController.java#L66-L75">ver</a></p></details>
+		<details class="qa"><summary>¿Qué pasa con mis enlaces si cambio el nombre?</summary>
+			<p>Pasan al nombre nuevo solos, porque apuntan al usuario. Durante 10 minutos el nombre anterior sigue reservado: sus enlaces muestran un aviso con la dirección nueva y llevan al destino. Después el nombre anterior se libera y da 404. <a class="code-link" data-code="src/main/java/app/service/PersonalLinkService.java#L156-L171">ver</a></p></details>
+		<details class="qa"><summary>¿Y si dos personas quieren el mismo nombre al mismo tiempo?</summary>
+			<p>Las columnas <code>username</code> y <code>previous_username</code> tienen índice único. Si dos transacciones pasan la verificación a la vez, la base rechaza a la segunda en el <code>flush</code> y se responde 409. <a class="code-link" data-code="src/main/java/app/service/UserService.java#L139-L151">ver</a></p></details>
+		<details class="qa"><summary>¿Cómo cierra la sesión si el usuario cerró la pestaña?</summary>
+			<p>El vencimiento vive en el servidor, no en la página. Un filtro de Spring Security lo revisa en cada pedido y, si pasó, invalida la sesión. El aviso de la página es solo para poder extenderla. <a class="code-link" data-code="src/main/java/app/SecurityConfig.java#L89-L108">ver</a></p></details>
+		<details class="qa"><summary>¿Por qué la extensión no necesita el token CSRF?</summary>
+			<p>El token protege de que <em>otra página web</em> mande un pedido con tu cookie. Una página no puede poner <code>Origin: chrome-extension://…</code>: lo pone el navegador. Por eso se exceptúa solo ese POST y solo con ese origen; el resto de la cuenta sigue pidiendo token. <a class="code-link" data-code="src/main/java/app/SecurityConfig.java#L81-L87">ver</a></p></details>
+		<details class="qa"><summary>¿Cómo prueban que algo vence sin esperar?</summary>
+			<p>El <code>Clock</code> es un bean. En los tests se reemplaza por <code>MutableClock</code> y se adelanta: 60 minutos para un enlace, 10 para un nombre, 30 para una sesión. <a class="code-link" data-code="src/test/java/app/support/MutableClock.java">MutableClock</a></p></details>
 		<details class="qa"><summary>¿Qué pasa si dos personas acortan al mismo tiempo y sale el mismo alias?</summary>
-			<p>El alias es la clave primaria. La segunda transacción falla al hacer <code>flush</code>, se captura la excepción y se reintenta con otro alias (hasta 10). Agotados, 503 con <code>Retry-After</code>. <a class="code-link" data-code="src/main/java/app/service/LinkService.java#L58-L78">ver</a></p></details>
-		<details class="qa"><summary>¿Cómo prueban que vence a los 60 minutos sin esperar una hora?</summary>
-			<p>El <code>Clock</code> es un bean. En los tests se reemplaza por <code>MutableClock</code> y se adelanta 60 minutos. <a class="code-link" data-code="src/test/java/app/support/MutableClock.java">MutableClock</a></p></details>
-		<details class="qa"><summary>¿Por qué <code>shorten</code> no es <code>@Transactional</code>?</summary>
-			<p>Porque después de una violación de clave la sesión de Hibernate no se puede seguir usando. Cada intento abre su propia transacción con <code>TransactionTemplate</code>. <a class="code-link" data-code="src/main/java/app/service/LinkService.java#L54-L67">ver</a></p></details>
-		<details class="qa"><summary>¿Qué pasa si se cae el servidor? ¿Se pierden los enlaces?</summary>
-			<p>No: HSQLDB guarda en archivo (<code>./data/shortener</code>). Hay un test que reinicia el contexto y vuelve a resolver el enlace (C13). <a class="code-link" data-code="src/test/java/app/service/PersistenceAcrossRestartTest.java">PersistenceAcrossRestartTest</a></p></details>
+			<p>El alias es la clave primaria. La segunda transacción falla al hacer <code>flush</code> y se reintenta con el siguiente libre (hasta 10). Agotados, 503 con <code>Retry-After</code>. <a class="code-link" data-code="src/main/java/app/service/LinkService.java#L65-L93">ver</a></p></details>
 		<details class="qa"><summary>¿Por qué el QR codifica la URL corta y no la original?</summary>
-			<p>Lo pide la consigna, y además así el QR deja de funcionar cuando el enlace vence. La URL sale de <code>app.base-url</code> y no del header <code>Host</code>, para que nadie pueda inyectar otro dominio.</p></details>
-		<details class="qa"><summary>¿Cómo evitan que <code>/api</code> o <code>/swagger</code> sean alias?</summary>
-			<p>Hay palabras reservadas configurables y el generador las saltea, comparando sin distinguir mayúsculas. Con 5 caracteres no podrían salir, pero protege si mañana se cambia el largo o se permite alias personalizado. <a class="code-link" data-code="src/main/java/app/service/AliasGenerator.java#L29-L49">AliasGenerator</a></p></details>
-		<details class="qa"><summary>Si en la Etapa 2 piden alias personalizado, ¿qué cambian?</summary>
-			<p>Un campo opcional en <code>ShortenRequest</code> y, en <code>LinkService</code>, usarlo en lugar de <code>aliasGenerator.generate()</code> (validando alfabeto y palabras reservadas). La tabla y la redirección no cambian.</p></details>
-		<details class="qa"><summary>Si piden contar visitas, ¿qué cambian?</summary>
-			<p>Un campo contador en <code>ShortLink</code> (o una tabla de visitas) que se incremente en <code>resolve</code>. Habría que dejar de borrar físicamente los vencidos si se quiere historial.</p></details>
-		<details class="qa"><summary>¿Cómo validan que la URL es válida?</summary>
-			<p>Solo formato, como pidió el Cliente (C1): no vacía, hasta 2048 caracteres, <code>http/https</code>, con host y puerto válido. No se consulta si el sitio existe. <a class="code-link" data-code="src/main/java/app/service/UrlValidator.java#L29-L54">UrlValidator</a></p></details>
+			<p>Lo pide la consigna, y así el QR deja de funcionar cuando el enlace vence. La URL sale de <code>app.base-url</code> y no del header <code>Host</code>, para que nadie pueda inyectar otro dominio.</p></details>
+		<details class="qa"><summary>¿Qué hay que cambiar si piden sesiones de 1 hora o una gracia de 30 minutos?</summary>
+			<p>Nada de código: <code>APP_SESSION_DESKTOP_TTL=1h</code> o <code>APP_USER_RENAME_GRACE=30m</code> en el servidor. <a class="code-link" data-code="src/main/resources/application.properties#L14-L26">ver</a></p></details>
 		<details class="qa"><summary>¿Qué cobertura tienen?</summary>
-			<p>JaCoCo exige al menos 70 % de líneas en servicios y entidades: si baja, <code>gradlew check</code> falla. <a class="code-link" data-code="build.gradle#L54-L76">build.gradle</a></p></details>
+			<p>JaCoCo exige al menos 70 % de líneas en servicios y entidades: si baja, <code>gradlew check</code> falla. <a class="code-link" data-code="build.gradle#L57-L78">build.gradle</a></p></details>
 	</section>
 
-	<footer class="muted">Código mostrado: versión <code>c40fbb0</code> del repositorio. Si el código cambió, manda el código.</footer>
+	<footer class="muted">Código mostrado: versión <code>b30ec49</code> del repositorio (Etapa 2). Si el código cambió, manda el código.</footer>
 </main>
 
 <script>
 'use strict';
 (function () {
-	const CODE = 'https://github.com/martincrespo77/PP6-TPGrupo2/blob/c40fbb01c690bab8524c5cf14bf79ff636de14bb/';
+	const CODE = 'https://github.com/martincrespo77/PP6-TPGrupo2/blob/b30ec49c51cdd2136e93d6b54d935b77efae8380/';
 
 	function codeLink(path, label) {
 		const a = document.createElement('a');
@@ -380,132 +493,234 @@
 	});
 
 	const J = 'src/main/java/app/';
+	const S = 'src/main/resources/static/';
 	const CLASSES = [
-		{ id: 'web', layer: 0, stereo: 'HTML + JS', name: 'Página web',
-			members: ['submit → fetch POST', 'showResult(link)', 'markExpired()', 'copyText(text)'],
-			what: 'Formulario "Dirección a acortar" + botón ACORTAR. Llama a la API con ruta relativa y muestra el enlace, el QR y la hora de vencimiento.',
-			why: 'Muestra solo el último enlace (C8). Usa secondsRemaining y no el reloj del celular para marcar el vencimiento, por si la hora del dispositivo está mal. El copiado tiene una alternativa para HTTP plano, donde navigator.clipboard no existe.',
+		{ id: 'web', layer: 0, stereo: 'HTML + JS', name: 'Página principal',
+			members: ['submit → POST /api/v1/links', 'createResultCard(link)', 'copiar / descargar QR'],
+			what: 'Formulario para acortar sin cuenta. Muestra el enlace, el QR y la hora de vencimiento.',
+			why: 'Usa ruta relativa a la API, así funciona igual en local y en el VPS. Marca el vencimiento con secondsRemaining del servidor y no con el reloj del dispositivo. La tarjeta del resultado (result-card.js) la comparte con la página de cuenta.',
 			tags: ['Consigna', 'C8'],
-			code: [['src/main/resources/static/index.html#L16-L52', 'index.html'], ['src/main/resources/static/app.js#L89-L111', 'app.js · shorten'], ['src/main/resources/static/app.js#L45-L66', 'showResult']],
+			code: [[S + 'app.js#L41-L64', 'app.js · shorten'], [S + 'result-card.js#L11-L53', 'result-card.js']],
 			ask: '¿Por qué la ruta de la API es relativa? → Porque la web se sirve desde el mismo servidor: funciona igual en local y en el VPS sin configurar nada.' },
+		{ id: 'cuenta', layer: 0, stereo: 'HTML + JS', name: 'Página /{usuario}', stage2: true,
+			members: ['render(me)', 'saveUsername / revert', 'crear y renombrar enlace', 'renderReservation(me)'],
+			what: 'La página de cada usuario: elegir o cambiar el nombre, ver la reserva del nombre anterior, crear enlaces personales y cambiarles el alias.',
+			why: 'La sirve RedirectController en /{usuario}. Si la abre otra cuenta, cambia la dirección a la propia. Manda el token CSRF en cada cambio (session.js) y, en la computadora, arranca el aviso de vencimiento de la sesión.',
+			tags: ['D55', 'D57', 'Etapa 2'],
+			code: [[S + 'cuenta.js#L62-L107', 'dirección + reserva'], [S + 'cuenta.js#L134-L181', 'formularios'], [S + 'session-timer.js#L1-L98', 'session-timer.js']],
+			ask: '¿Qué pasa si entro a /beto estando logueado como agustin? → Ves tu propia cuenta: la página reemplaza la dirección por /agustin y avisa.' },
+		{ id: 'login', layer: 0, stereo: 'HTML + JS', name: 'Ingreso por QR', stage2: true,
+			members: ['start(): POST código', 'poll() cada 2 s', 'showExpired(): QR nuevo', 'confirmar-ingreso (celular)'],
+			what: 'login.html en la computadora muestra el QR; confirmar-ingreso.html en el celular aprueba el ingreso.',
+			why: 'Cuando el código vence pide otro solo, hasta 10 seguidos, para no consultar al servidor para siempre con la pestaña olvidada. El celular confirma con un botón para no aprobar un QR ajeno sin darse cuenta.',
+			tags: ['D51', 'D58', 'Etapa 2'],
+			code: [[S + 'login.js#L57-L119', 'login.js'], [S + 'confirmar-ingreso.js#L21-L43', 'confirmar-ingreso.js']],
+			ask: '¿Por qué el código dura solo 60 segundos? → Para que un QR viejo, por ejemplo fotografiado, no sirva. La página lo renueva sola.' },
 		{ id: 'ext', layer: 0, stereo: 'Manifest V3', name: 'Extensión',
-			members: ['ext = browser ?? chrome', 'init(): pestaña activa', 'shorten(): POST', 'markExpired()'],
-			what: 'Popup para Chrome y Firefox que acorta la página que estás viendo. Mismo código para los dos navegadores.',
-			why: 'Solo pide el permiso activeTab (lo mínimo). La URL de la API viene de config.js, que el servidor reescribe al descargarla. En páginas que no son http/https deshabilita el botón (C10).',
-			tags: ['Consigna', 'C10'],
-			code: [['browser-extension/popup.js#L121-L136', 'popup.js · init'], ['browser-extension/popup.js#L92-L119', 'popup.js · shorten'], ['browser-extension/manifest.json', 'manifest.json']],
-			ask: '¿Cómo funciona en los dos navegadores? → Firefox expone browser y Chrome chrome; con Manifest V3 los dos devuelven promesas, así que alcanza con browser ?? chrome.' },
+			members: ['init(): pestaña activa', 'currentAccount()', 'shorten(): personal | público', 'reuseExisting'],
+			what: 'Popup para Chrome y Firefox que acorta la página que estás viendo al tocar el ícono.',
+			why: 'Solo pide activeTab. Si el navegador tiene sesión en el acortador y nombre elegido, crea un enlace personal; si no, uno público. Si la página ya estaba acortada, renueva el mismo enlace. No acorta un enlace corto propio.',
+			tags: ['C10', 'D43', 'D60'],
+			code: [['browser-extension/popup.js#L120-L172', 'popup.js · shorten'], ['browser-extension/popup.js#L173-L189', 'init'], ['browser-extension/manifest.json', 'manifest.json']],
+			ask: '¿Cómo sabe la extensión quién sos? → No tiene ingreso propio: usa la cookie de sesión del navegador, que llega porque la extensión tiene permiso sobre el sitio.' },
 
 		{ id: 'handler', layer: 1, stereo: '@RestControllerAdvice', name: 'GlobalExceptionHandler',
-			members: ['InvalidUrl → 400', 'InvalidQrSize → 400', 'LinkNotFound → 404', 'AliasUnavailable → 503', 'JSON roto → 400'],
-			what: 'Convierte las excepciones de la API en respuestas ProblemDetail (RFC 7807) con un mensaje para el usuario.',
-			why: 'Los servicios tiran excepciones con significado de negocio y no saben nada de HTTP. Está limitado a LinkController para que la redirección siga devolviendo una página HTML.',
+			members: ['InvalidUrl → 400', 'UsernameUnavailable → 409', 'UsernameChangeLocked → 409', 'LoginRequestNotFound → 404', 'AliasUnavailable → 503'],
+			what: 'Convierte las excepciones de la API en ProblemDetail (RFC 7807) con un mensaje en español.',
+			why: 'Los servicios tiran excepciones con significado de negocio y no saben nada de HTTP. Está limitado a los controladores de la API para que la redirección siga devolviendo HTML.',
 			tags: ['D26'],
-			code: [[J + 'exception/GlobalExceptionHandler.java#L15-L62', 'GlobalExceptionHandler']],
-			ask: '¿Por qué 503 y no 500 cuando no hay alias? → Es temporal: reintentar en un segundo puede funcionar. Por eso va con Retry-After: 1.' },
+			code: [[J + 'exception/GlobalExceptionHandler.java#L18-L130', 'GlobalExceptionHandler']],
+			ask: '¿Por qué 409 al cambiar de nombre durante la gracia? → Es un conflicto con el estado actual (el nombre anterior sigue reservado); la respuesta trae hasta cuándo.' },
 		{ id: 'linkController', layer: 1, stereo: '@RestController', name: 'LinkController',
-			members: ['/api/v1/links', '+ shorten(req): 201', '+ qr(alias, size, download): PNG'],
-			what: 'La API REST: crear un enlace y pedir su QR.',
-			why: 'No tiene reglas de negocio: recibe, delega en el servicio y arma la respuesta HTTP (201 + Location, Content-Disposition, no-store). Versionada en /api/v1 (C18). Documentada con anotaciones de OpenAPI.',
+			members: ['/api/v1/links', '+ shorten(req): 201 | 200', '+ qr(alias, size, download)'],
+			what: 'La API pública: crear un enlace y pedir su QR.',
+			why: 'Sin reglas de negocio: recibe, delega y arma la respuesta HTTP. Con reuseExisting renueva un enlace vigente a la misma URL y responde 200 en vez de 201.',
 			tags: ['Consigna', 'C18'],
-			code: [[J + 'controller/LinkController.java#L30-L51', 'shorten'], [J + 'controller/LinkController.java#L53-L78', 'qr']],
+			code: [[J + 'controller/LinkController.java#L49-L59', 'shorten'], [J + 'controller/LinkController.java#L68-L86', 'qr']],
 			ask: '¿Por qué 201 y no 200? → Porque se creó un recurso nuevo; el header Location indica dónde quedó.' },
 		{ id: 'redirect', layer: 1, stereo: '@Controller', name: 'RedirectController',
-			members: ['GET /{alias}', '+ redirect(alias): 302 | 404'],
-			what: 'Atiende el enlace corto: redirige al destino o muestra la página "Este enlace expiró o no existe".',
-			why: 'El patrón [A-Za-z0-9]{1,16} no admite puntos ni barras, así no choca con /api/** ni con archivos estáticos. 302 y no 301 porque el 301 queda en caché. Vencido e inexistente dan el mismo 404 (C6, D7).',
-			tags: ['Consigna', 'D7', 'D15', 'D20'],
-			code: [[J + 'controller/RedirectController.java#L19-L45', 'RedirectController']],
+			members: ['GET /{nombre}', 'GET /{usuario}/{alias}', 'página de usuario | 302 | aviso | 404'],
+			what: 'Atiende todas las direcciones cortas: la página de un usuario, los enlaces públicos y los personales, y el aviso de enlace movido.',
+			why: 'Para /{nombre} decide en orden: usuario, nombre anterior reservado, alias público. 302 y no 301 porque el 301 queda en caché. Vencido e inexistente dan el mismo 404.',
+			tags: ['D7', 'D20', 'D54', 'D56', 'D57'],
+			code: [[J + 'controller/RedirectController.java#L53-L70', '/{nombre}'], [J + 'controller/RedirectController.java#L72-L89', '/{usuario}/{alias}']],
 			ask: '¿Por qué no es @RestController? → Porque devuelve una redirección o una página HTML, no JSON.' },
+		{ id: 'accountController', layer: 1, stereo: '@RestController', name: 'AccountController', stage2: true,
+			members: ['/api/v1/me', '+ me()', '+ chooseUsername()', '+ createLink() / changeAlias()', '+ session() / extendSession()'],
+			what: 'La API de la cuenta: datos del usuario, nombre, enlaces personales y sesión de la computadora.',
+			why: 'Todo requiere sesión (401 si no hay) y los cambios requieren token CSRF, salvo crear un enlace desde la extensión. El QR de los personales está en UserLinkController (/api/v1/users/…).',
+			tags: ['D48', 'D49', 'D59', 'Etapa 2'],
+			code: [[J + 'controller/AccountController.java#L53-L92', 'cuenta y enlaces'], [J + 'controller/AccountController.java#L113-L124', 'sesión']],
+			ask: '¿Quién es "me"? → El usuario de la sesión: authentication.getName() es el identificador de Google, que nunca cambia aunque cambie el nombre.' },
+		{ id: 'loginController', layer: 1, stereo: '@RestController', name: 'LoginRequestController', stage2: true,
+			members: ['POST /api/v1/login-requests', 'GET /current, /current/qr', 'POST /{código}/approve', '- signIn()'],
+			what: 'El ingreso de la computadora por QR, como WhatsApp Web.',
+			why: 'El código se guarda en la sesión de la computadora que lo pidió: solo esa sesión puede usarlo. Al iniciar la sesión cambia el id (session fixation) y le pone vencimiento de computadora.',
+			tags: ['D51', 'D58', 'D59', 'Etapa 2'],
+			code: [[J + 'controller/LoginRequestController.java#L66-L104', 'create + status'], [J + 'controller/LoginRequestController.java#L111-L131', 'approve + signIn']],
+			ask: '¿Por qué changeSessionId? → Si alguien conocía el id de sesión de antes del ingreso, deja de servirle.' },
 		{ id: 'extController', layer: 1, stereo: '@Controller', name: 'ExtensionController',
-			members: ['GET /descargas/acortador-pp6.zip', '+ download(): zip'],
+			members: ['GET /descargas/acortador-pp6.zip'],
 			what: 'Entrega la extensión lista para instalar desde la web.',
-			why: 'Al arrancar, toma el zip que armó Gradle y reescribe config.js con app.base-url. Así la extensión bajada del VPS llama al VPS y la bajada en local, a localhost.',
+			why: 'Toma el zip que armó Gradle y reescribe config.js con app.base-url: la extensión bajada del VPS llama al VPS.',
 			tags: ['C10'],
-			code: [[J + 'controller/ExtensionController.java#L22-L67', 'ExtensionController'], ['build.gradle#L82-L96', 'build.gradle · extensionZip']],
+			code: [[J + 'controller/ExtensionController.java#L35-L67', 'ExtensionController'], ['build.gradle#L86-L96', 'extensionZip']],
 			ask: '¿Por qué no un zip fijo en el repo? → Quedaría desactualizado o apuntando al servidor equivocado.' },
 
-		{ id: 'qrService', layer: 2, stereo: '@Service', name: 'QrService',
-			members: ['MIN 128 · MAX 1024', '+ qrFor(alias, size): byte[]', '~ generatePng(text, size)'],
-			what: 'Genera el PNG del QR con ZXing.',
-			why: 'Usa la misma regla que la redirección (findLive): un enlace vencido no tiene QR. Codifica la URL corta armada con app.base-url, nunca con datos del pedido. Corrección de errores M para tolerar impresiones gastadas.',
-			tags: ['Consigna', 'C11', 'D21'],
-			code: [[J + 'service/QrService.java#L21-L64', 'QrService']],
-			ask: '¿Cómo prueban que el QR está bien? → El test decodifica el PNG con ZXing y compara el texto con la URL corta.' },
 		{ id: 'linkService', layer: 2, stereo: '@Service', name: 'LinkService',
-			members: ['- em: EntityManager', '- clock: Clock', '+ shorten(url)', '+ resolve(alias)', '+ findLive(alias)', '+ purgeExpired() @Scheduled'],
-			what: 'El corazón del sistema: acortar, resolver y borrar vencidos. Es dueño de sus consultas JPA.',
-			why: 'Cada intento de creación va en su propia transacción porque, tras un choque de clave, la sesión de Hibernate queda inutilizable. findLive es la única definición de "vigente". La limpieza es @Scheduled y solo libera espacio.',
-			tags: ['Consigna', 'D2', 'D5', 'D6', 'D11'],
-			code: [[J + 'service/LinkService.java#L54-L96', 'shorten + tryCreate'], [J + 'service/LinkService.java#L102-L122', 'resolve + findLive'], [J + 'service/LinkService.java#L124-L138', 'purgeExpired']],
-			ask: '¿Qué pasa con un alias vencido que todavía no borró el cron? → Si el generador lo vuelve a sacar, tryCreate lo borra y lo reasigna en la misma transacción.' },
+			members: ['+ shorten(url)', '+ renew(url)', '+ resolve / findLive', '+ purgeExpired() @Scheduled'],
+			what: 'Enlaces públicos: acortar, renovar, resolver y borrar vencidos.',
+			why: 'Cada intento de creación va en su propia transacción. Para elegir el alias descarta los vigentes y los nombres de usuario en uso, y lo vuelve a comprobar dentro de la transacción del alta. findLive es la única definición de "vigente".',
+			tags: ['Consigna', 'D2', 'D6', 'D11', 'D54'],
+			code: [[J + 'service/LinkService.java#L59-L115', 'shorten + tryCreate'], [J + 'service/LinkService.java#L128-L179', 'renew + findLive']],
+			ask: '¿Qué pasa con un alias vencido que todavía no borró la limpieza? → Ya no cuenta como ocupado: tryCreate lo borra y lo reasigna en la misma transacción.' },
+		{ id: 'personalLinkService', layer: 2, stereo: '@Service', name: 'PersonalLinkService', stage2: true,
+			members: ['+ create(user, url, alias)', '+ rename(user, alias, nuevo)', '+ renew(user, url)', '+ findMoved(anterior, alias)'],
+			what: 'Enlaces del espacio de un usuario: /{usuario}/{alias}.',
+			why: 'Sin alias usa el más corto libre del usuario con el mismo AliasGenerator. Un alias vencido se reasigna. findMoved encuentra un enlace pedido con el nombre anterior mientras siga reservado, para mostrar el aviso.',
+			tags: ['D48', 'D56', 'Etapa 2'],
+			code: [[J + 'service/PersonalLinkService.java#L57-L141', 'create + rename'], [J + 'service/PersonalLinkService.java#L156-L194', 'findMoved + renew']],
+			ask: '¿Dos usuarios pueden tener el mismo alias? → Sí: /ana/cv y /beto/cv. La unicidad es por (dueño, alias).' },
+		{ id: 'userService', layer: 2, stereo: '@Service', name: 'UserService', stage2: true,
+			members: ['+ registerIfNew(sub, email)', '+ chooseUsername(sub, nombre)', '+ namesInUse(now)', '+ purgeExpiredReservations()'],
+			what: 'Alta de usuarios en su primer ingreso con Google y nombre de usuario con período de gracia.',
+			why: 'Un nombre está ocupado si es de otro, si es el anterior reservado de otro o si es el alias de un enlace público vigente. Durante la gracia solo permite volver al anterior.',
+			tags: ['D49', 'D54', 'D55', 'Etapa 2'],
+			code: [[J + 'service/UserService.java#L56-L115', 'alta + nombres en uso'], [J + 'service/UserService.java#L117-L202', 'chooseUsername']],
+			ask: '¿Por qué el nombre inicial es usuario-xxxxxxxx? → Para que exista desde el primer ingreso; nadie puede elegir un nombre con ese prefijo, así que hay que cambiarlo antes de crear enlaces.' },
+		{ id: 'loginService', layer: 2, stereo: '@Service', name: 'LoginRequestService', stage2: true,
+			members: ['+ create() / discard(código)', '+ approve(código, sub)', '+ poll(código)', '+ purgeExpired()'],
+			what: 'Los códigos de ingreso por QR: crearlos, aprobarlos y consumirlos.',
+			why: 'Aprobar y consumir son UPDATE condicionales: un código se aprueba una vez y se usa una vez, aunque lleguen dos pedidos juntos. El código es aleatorio de 32 bytes (SecureRandom), imposible de adivinar.',
+			tags: ['D51', 'D58', 'Etapa 2'],
+			code: [[J + 'service/LoginRequestService.java#L55-L128', 'LoginRequestService']],
+			ask: '¿Qué impide usar el mismo código dos veces? → El UPDATE solo cambia la fila si está APPROVED; la segunda vez no encuentra nada y responde EXPIRED.' },
+		{ id: 'qrService', layer: 2, stereo: '@Service', name: 'QrService',
+			members: ['+ qrFor(alias, size)', '+ qrForPersonal(usuario, alias, size)', '+ qrForLogin(código)'],
+			what: 'Genera los PNG con ZXing: de enlaces públicos, personales y del ingreso.',
+			why: 'Usa la misma regla que la redirección (findLive): un enlace vencido no tiene QR. Codifica la URL armada con app.base-url, nunca con datos del pedido.',
+			tags: ['Consigna', 'C11', 'D21'],
+			code: [[J + 'service/QrService.java#L25-L69', 'QrService']],
+			ask: '¿Cómo prueban que el QR está bien? → El test decodifica el PNG y compara el texto con la URL esperada.' },
 
 		{ id: 'validator', layer: 3, stereo: '@Component', name: 'UrlValidator',
-			members: ['+ validate(url)', '- hasValidHost(url)'],
+			members: ['+ validate(url)'],
 			what: 'Decide si una URL se puede acortar.',
-			why: 'Solo formato, como pidió el Cliente (C1): no vacía, hasta 2048 caracteres, http/https, con host y puerto válido. No consulta si el sitio existe. Los mensajes ya están en español para mostrarlos tal cual.',
+			why: 'Solo formato, como pidió el Cliente (C1): no vacía, hasta 2048 caracteres, http/https, con host y puerto válido. Lo usan los enlaces públicos y los personales.',
 			tags: ['C1', 'D16-D19'],
-			code: [[J + 'service/UrlValidator.java#L11-L54', 'UrlValidator']],
-			ask: '¿Aceptan localhost o el propio dominio? → Sí, el Cliente lo permitió explícitamente (C1).' },
+			code: [[J + 'service/UrlValidator.java#L16-L54', 'UrlValidator']],
+			ask: '¿Aceptan localhost? → Sí, el Cliente lo permitió (C1).' },
 		{ id: 'alias', layer: 3, stereo: '@Component', name: 'AliasGenerator',
-			members: ['length = 5', 'alphabet (31)', '+ generate(): String'],
-			what: 'Genera un alias al azar con SecureRandom, salteando palabras reservadas.',
-			why: 'No verifica que el alias esté libre: de eso se encarga LinkService, que reintenta. Así cada clase hace una sola cosa. Largo, alfabeto y reservadas están en application.properties.',
-			tags: ['C2', 'C4', 'D8', 'D10'],
-			code: [[J + 'service/AliasGenerator.java#L9-L50', 'AliasGenerator'], ['src/main/resources/application.properties#L8-L11', 'config']],
-			ask: '¿Cuántos alias posibles hay? → 31^5 ≈ 28,6 millones. Con el tráfico esperado, los choques son muy raros.' },
+			members: ['alphabet (33)', '+ generate(taken): String', '~ encode(n)'],
+			what: 'Devuelve el alias más corto libre: el menor número n ≥ 1 en base 33, salteando ocupados y reservados.',
+			why: 'No sabe qué está ocupado: se lo pasan. Así sirve igual para los públicos (alias vigentes + nombres de usuario) y para los personales (alias vigentes de ese usuario).',
+			tags: ['D8', 'D9', 'D10'],
+			code: [[J + 'service/AliasGenerator.java#L8-L51', 'AliasGenerator'], ['src/main/resources/application.properties#L8-L12', 'config']],
+			ask: '¿Cuántos alias de uno o dos caracteres hay? → 32 de uno y 1056 de dos. Como los vencidos se reutilizan, con el tráfico esperado casi siempre son de uno o dos.' },
 		{ id: 'shortLink', layer: 3, stereo: '@Entity · short_link', name: 'ShortLink',
-			members: ['@Id alias', 'originalUrl', 'createdAt', 'expiresAt (índice)', '+ isExpired(now)'],
-			what: 'La única tabla. Cada fila es un enlace con su vencimiento.',
-			why: 'El alias es la clave primaria: la base impide duplicados. Hay un índice en expires_at para que la limpieza no recorra toda la tabla. isExpired usa el intervalo semiabierto [createdAt, expiresAt).',
+			members: ['@Id alias', 'originalUrl', 'createdAt / expiresAt', '+ isExpired(now)'],
+			what: 'Un enlace público con su vencimiento.',
+			why: 'El alias es la clave primaria: la base impide duplicados. isExpired usa el intervalo semiabierto [createdAt, expiresAt).',
 			tags: ['Consigna', 'D3', 'D30'],
-			code: [[J + 'mappings/ShortLink.java#L10-L44', 'ShortLink']],
+			code: [[J + 'mappings/ShortLink.java#L12-L48', 'ShortLink']],
 			ask: '¿Por qué Instant y no LocalDateTime? → Instant es un punto exacto en UTC: no depende de la zona horaria del servidor.' },
+		{ id: 'personalLink', layer: 3, stereo: '@Entity · personal_link', name: 'PersonalLink', stage2: true,
+			members: ['@ManyToOne owner', 'alias (único por dueño)', 'originalUrl, expiresAt', '+ changeAlias / extendUntil'],
+			what: 'Un enlace en el espacio de un usuario.',
+			why: 'Apunta al usuario, no a su nombre: si el usuario cambia de nombre, los enlaces lo siguen sin actualizar filas.',
+			tags: ['D48', 'Etapa 2'],
+			code: [[J + 'mappings/PersonalLink.java#L24-L73', 'PersonalLink']],
+			ask: '¿Por qué no guardar el nombre en el enlace? → Habría que actualizar todos los enlaces en cada cambio de nombre.' },
+		{ id: 'appUser', layer: 3, stereo: '@Entity · app_user', name: 'AppUser', stage2: true,
+			members: ['googleSubject (único)', 'username (único)', 'previousUsername (único)', 'previousUsernameReleasedAt', '+ rename(nombre, hasta)'],
+			what: 'Un usuario: su identidad de Google, su nombre y, durante la gracia, el nombre anterior reservado.',
+			why: 'No hay contraseña: la identidad es el subject de Google. Los índices únicos en username y previous_username hacen que la base impida que dos cuentas compartan un nombre.',
+			tags: ['D49', 'D55', 'Etapa 2'],
+			code: [[J + 'mappings/AppUser.java#L12-L82', 'AppUser']],
+			ask: '¿Se guarda el correo? → Sí, solo para mostrar con qué cuenta entraste; no se usa para identificar al usuario.' },
+		{ id: 'loginRequest', layer: 3, stereo: '@Entity · login_request', name: 'LoginRequest', stage2: true,
+			members: ['@Id code (43)', 'status: PENDING | APPROVED | CONSUMED', 'expiresAt', '@ManyToOne user'],
+			what: 'Un código de ingreso por QR y su estado.',
+			why: 'Tiene índice en expires_at para que la limpieza no recorra toda la tabla. Se borra al vencer.',
+			tags: ['D51', 'Etapa 2'],
+			code: [[J + 'mappings/LoginRequest.java#L19-L60', 'LoginRequest']],
+			ask: '¿Por qué un estado CONSUMED y no borrarlo al usarlo? → El UPDATE condicional a CONSUMED es lo que garantiza que se use una sola vez.' },
 		{ id: 'dto', layer: 3, stereo: 'record', name: 'DTOs',
-			members: ['ShortenRequest(url)', 'ShortLinkResponse(alias, shortUrl, …, secondsRemaining, qrUrl)'],
-			what: 'Lo que entra y sale por la API, separado de la entidad.',
-			why: 'Si cambia la tabla, la API no cambia, y nunca se expone la entidad. secondsRemaining se redondea hacia arriba para no mostrar 0 con el enlace todavía vigente.',
-			tags: ['D28'],
-			code: [[J + 'dto/ShortenRequest.java', 'ShortenRequest'], [J + 'dto/ShortLinkResponse.java#L7-L30', 'ShortLinkResponse']],
+			members: ['ShortLinkResponse', 'AccountResponse', 'SessionResponse', 'PersonalLinkRequest …'],
+			what: 'Lo que entra y sale por la API, separado de las entidades.',
+			why: 'Si cambia una tabla, la API no cambia, y nunca se expone una entidad. Los segundos restantes (enlace, reserva de nombre, sesión) los calcula el servidor.',
+			tags: ['D24', 'D28'],
+			code: [[J + 'dto/ShortLinkResponse.java#L9-L33', 'ShortLinkResponse'], [J + 'dto/AccountResponse.java', 'AccountResponse'], [J + 'dto/SessionResponse.java', 'SessionResponse']],
 			ask: '¿Por qué record? → Son inmutables y sin código repetido: constructor, getters, equals y toString vienen solos.' },
 
-		{ id: 'db', layer: 4, stereo: 'base de datos', name: 'HSQLDB',
-			members: ['jdbc:hsqldb:file:./data/shortener', 'tabla short_link', 'ddl-auto = update'],
-			what: 'Base relacional embebida que guarda en archivo.',
-			why: 'No hay que instalar nada y los enlaces sobreviven a un reinicio (C13). Hibernate crea la tabla a partir de la entidad.',
-			tags: ['Consigna', 'C13'],
-			code: [['src/main/resources/application.properties#L15-L22', 'datasource']],
-			ask: '¿Cómo se ve lo guardado? → Con la consola HQL del profe (hql-console), habilitada en local.' },
+		{ id: 'security', layer: 4, stereo: '@Configuration', name: 'SecurityConfig', stage2: true,
+			members: ['oauth2Login (Google)', 'CSRF con cookie', 'DesktopSessionFilter', 'fromExtension(…)'],
+			what: 'Qué rutas necesitan sesión, cómo se entra con Google, CSRF y el cierre de sesiones de computadora vencidas.',
+			why: 'Lo público de la Etapa 1 sigue sin sesión. La API responde 401 en vez de redirigir; la página del QR del celular sí lleva a Google. El filtro de sesión corre antes de autorizar.',
+			tags: ['D50', 'D52', 'D59', 'D60', 'Etapa 2'],
+			code: [[J + 'SecurityConfig.java#L40-L79', 'cadena de filtros'], [J + 'SecurityConfig.java#L81-L108', 'extensión + sesión']],
+			ask: '¿Qué rutas están protegidas? → /api/v1/me/**, aprobar un ingreso y la página /l/{código}. Todo lo demás es público.' },
+		{ id: 'desktop', layer: 4, stereo: '@Component', name: 'DesktopSession', stage2: true,
+			members: ['+ start(session)', '+ extend(session)', '+ expiresAt(session)', '+ isMobile(request)'],
+			what: 'La duración de la sesión de una computadora: 30 minutos, extensible.',
+			why: 'El vencimiento se guarda como atributo de la sesión del servidor, así no depende de que la página siga abierta.',
+			tags: ['D59', 'Etapa 2'],
+			code: [[J + 'DesktopSession.java#L15-L68', 'DesktopSession']],
+			ask: '¿Por qué no limitar también al celular? → El Cliente pidió el cierre para la computadora, que suele ser compartida.' },
 		{ id: 'app', layer: 4, stereo: '@SpringBootApplication', name: 'Application',
 			members: ['@EnableScheduling', '+ clock(): Clock', '+ addCorsMappings()'],
 			what: 'Arranca la aplicación y declara lo transversal: el reloj, las tareas programadas y CORS.',
-			why: 'Un único Clock en UTC, truncado a milisegundos para que lo guardado vuelva igual de la base. CORS solo para la extensión, porque la web está en el mismo origen.',
-			tags: ['D45'],
-			code: [[J + 'Application.java#L16-L47', 'Application']],
+			why: 'Un único Clock en UTC. CORS solo para la extensión: con credenciales en /api/v1/me/** y sin credenciales en el resto de /api/**.',
+			tags: ['D45', 'D60'],
+			code: [[J + 'Application.java#L15-L55', 'Application']],
 			ask: '¿Por qué inyectar un Clock en vez de usar Instant.now()? → Para que los tests controlen el tiempo.' },
 		{ id: 'props', layer: 4, stereo: 'configuración', name: 'application.properties',
-			members: ['app.base-url', 'app.link.ttl = 60m', 'app.alias.*', 'app.cleanup.cron'],
+			members: ['app.link.ttl = 60m', 'app.alias.* / app.user.*', 'app.login.ttl = 60s', 'app.session.* = 30m / 2m', 'app.user.rename-grace = 10m'],
 			what: 'Todo lo que puede cambiar sin recompilar.',
-			why: 'Respuesta a la "regla del Cliente incierto" (C20): si cambian los 60 minutos o el largo del alias, se toca una línea. En el VPS, APP_BASE_URL pisa el dominio.',
+			why: 'Respuesta a la "regla del Cliente incierto" (C20): los tiempos de la Etapa 2 también se cambian con una variable de entorno.',
 			tags: ['C20'],
-			code: [['src/main/resources/application.properties#L1-L29', 'application.properties']],
-			ask: '¿Qué hay que cambiar si piden enlaces de 24 horas? → app.link.ttl=24h. Nada de código.' }
+			code: [['src/main/resources/application.properties#L1-L55', 'application.properties']],
+			ask: '¿Qué hay que cambiar si piden enlaces de 24 horas? → app.link.ttl=24h. Nada de código.' },
+		{ id: 'db', layer: 4, stereo: 'base de datos', name: 'HSQLDB',
+			members: ['short_link', 'personal_link', 'app_user', 'login_request'],
+			what: 'Base relacional embebida que guarda en archivo.',
+			why: 'No hay que instalar nada y los datos sobreviven a un reinicio (C13). Hibernate crea las tablas desde las entidades.',
+			tags: ['Consigna', 'C13'],
+			code: [['src/main/resources/application.properties#L41-L48', 'datasource']],
+			ask: '¿Cómo se ve lo guardado? → Con la consola JPQL del profe, habilitada en local y apagada en el VPS.' }
 	];
 
 	const EDGES = [
 		['web', 'linkController', 'POST'],
-		['ext', 'linkController', 'POST'],
 		['web', 'extController', 'descarga'],
+		['cuenta', 'accountController', '/api/v1/me'],
+		['login', 'loginController', 'QR'],
+		['ext', 'linkController', 'público'],
+		['ext', 'accountController', 'personal'],
 		['handler', 'linkController', 'errores', true],
+		['handler', 'accountController', 'errores', true],
 		['linkController', 'linkService', ''],
 		['linkController', 'qrService', ''],
 		['redirect', 'linkService', 'findLive'],
-		['qrService', 'linkService', 'findLive'],
+		['redirect', 'personalLinkService', 'findMoved'],
+		['redirect', 'userService', 'usuario?'],
+		['accountController', 'userService', ''],
+		['accountController', 'personalLinkService', ''],
+		['accountController', 'desktop', 'sesión'],
+		['loginController', 'loginService', ''],
+		['loginController', 'desktop', 'start'],
 		['linkService', 'validator', ''],
 		['linkService', 'alias', ''],
+		['linkService', 'userService', 'namesInUse'],
 		['linkService', 'shortLink', 'JPA'],
-		['linkService', 'dto', ''],
-		['shortLink', 'db', '']
+		['personalLinkService', 'alias', ''],
+		['personalLinkService', 'personalLink', 'JPA'],
+		['userService', 'appUser', 'JPA'],
+		['loginService', 'loginRequest', 'JPA'],
+		['qrService', 'linkService', 'findLive'],
+		['qrService', 'personalLinkService', 'findLive'],
+		['personalLink', 'appUser', 'owner'],
+		['security', 'desktop', 'filtro']
 	];
 
 	const diagram = document.getElementById('diagram');
@@ -524,7 +739,7 @@
 	CLASSES.forEach(function (c) {
 		const box = document.createElement('button');
 		box.type = 'button';
-		box.className = 'uml';
+		box.className = 'uml' + (c.stage2 ? ' stage2' : '');
 		box.dataset.id = c.id;
 		box.setAttribute('aria-label', c.name + ': ver explicación');
 		const head = document.createElement('div');
@@ -566,6 +781,7 @@
 
 	let selected = null;
 
+	// Con muchas flechas, las etiquetas solo se muestran en las de la clase elegida.
 	function draw() {
 		svg.querySelectorAll('line, text').forEach(function (n) { n.remove(); });
 		EDGES.forEach(function (e) {
@@ -583,7 +799,7 @@
 				const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
 				t.setAttribute('x', (p1.x + p2.x) / 2 + 4);
 				t.setAttribute('y', (p1.y + p2.y) / 2 - 4);
-				t.setAttribute('class', 'edge-label' + (hl ? ' hl' : ''));
+				t.setAttribute('class', 'edge-label' + (hl ? ' hl' : ' dim'));
 				t.textContent = e[2];
 				svg.appendChild(t);
 			}
@@ -614,7 +830,7 @@
 		const tags = document.createElement('p');
 		c.tags.forEach(function (t) {
 			const s = document.createElement('span');
-			s.className = 'tag' + (/^C\d/.test(t) ? ' c' : /^D\d/.test(t) ? ' d' : '');
+			s.className = 'tag' + (/^C\d/.test(t) ? ' c' : /^D\d/.test(t) ? ' d' : t === 'Etapa 2' ? ' new' : '');
 			s.textContent = t;
 			tags.appendChild(s);
 		});
