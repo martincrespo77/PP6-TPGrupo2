@@ -4,20 +4,23 @@
 	// Firefox expone `browser` y Chrome `chrome`; en Manifest V3 los dos devuelven promesas.
 	const ext = globalThis.browser ?? globalThis.chrome;
 	const API = PP6_CONFIG.apiBaseUrl + '/api/v1/links';
+	// Mismo patrón que GET /{alias} en RedirectController.
+	const ALIAS_PATH = /^\/[A-Za-z0-9]{1,16}$/;
 
 	const MESSAGES = {
 		loading: 'Acortando…',
 		notShortenable: 'Esta página no se puede acortar (solo http/https)',
-		unavailable: 'No pudimos generar el enlace en este momento. Probá de nuevo en unos segundos.',
-		network: 'No se pudo conectar con el servidor. Revisá tu conexión y probá de nuevo.',
-		unexpected: 'Ocurrió un error inesperado. Probá de nuevo.',
+		alreadyShort: 'Esta página ya es un enlace corto de nuestro acortador.',
+		renewed: 'Esta página ya estaba acortada: renovamos el enlace por 60 minutos.',
+		unavailable: 'No pudimos generar el enlace en este momento. Volvé a abrir la extensión en unos segundos.',
+		network: 'No se pudo conectar con el servidor. Revisá tu conexión y volvé a abrir la extensión.',
+		unexpected: 'Ocurrió un error inesperado. Volvé a abrir la extensión.',
 		copied: 'Enlace copiado.',
 		copyFailed: 'No se pudo copiar. Seleccioná el enlace y copialo a mano.',
-		expired: 'Este enlace venció. Apretá ACORTAR para crear uno nuevo.'
+		expired: 'Este enlace venció. Volvé a abrir la extensión para crear uno nuevo.'
 	};
 
 	const pageUrl = document.getElementById('page-url');
-	const button = document.getElementById('shorten');
 	const status = document.getElementById('status');
 	const result = document.getElementById('result');
 	const shortUrl = document.getElementById('short-url');
@@ -26,7 +29,6 @@
 	const download = document.getElementById('download');
 	const expires = document.getElementById('expires');
 
-	let tabUrl = null;
 	let expirationTimer = null;
 
 	function showStatus(message, kind) {
@@ -43,8 +45,16 @@
 		}
 	}
 
-	function formatTime(isoInstant) {
-		return new Date(isoInstant).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+	function isOwnShortLink(url) {
+		const parsed = new URL(url);
+		return parsed.origin === new URL(PP6_CONFIG.apiBaseUrl).origin && ALIAS_PATH.test(parsed.pathname);
+	}
+
+	function formatExpiration(isoInstant) {
+		const date = new Date(isoInstant);
+		const day = date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+		const time = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+		return 'el ' + day + ' a las ' + time;
 	}
 
 	function showResult(link) {
@@ -63,9 +73,8 @@
 		download.href = link.qrUrl + '?download=true';
 		download.hidden = false;
 
-		expires.textContent = 'Vence a las ' + formatTime(link.expiresAt) + '.';
+		expires.textContent = 'Vence ' + formatExpiration(link.expiresAt) + '.';
 		expirationTimer = setTimeout(markExpired, link.secondsRemaining * 1000);
-		showStatus('');
 	}
 
 	function markExpired() {
@@ -89,35 +98,36 @@
 		}
 	}
 
-	async function shorten() {
+	/** Con reuseExisting el servidor devuelve 200 y renueva el enlace si la página ya estaba acortada. */
+	async function shorten(url) {
 		showStatus(MESSAGES.loading, 'info');
-		button.disabled = true;
+		let response;
 		try {
-			let response;
-			try {
-				response = await fetch(API, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-					body: JSON.stringify({ url: tabUrl })
-				});
-			} catch (e) {
-				showStatus(MESSAGES.network, 'error');
-				return;
-			}
-			if (response.status === 201) {
-				showResult(await response.json());
-			} else if (response.status === 400) {
-				showStatus((await problemDetail(response)) || MESSAGES.unexpected, 'error');
-			} else if (response.status === 503) {
-				showStatus(MESSAGES.unavailable, 'error');
-			} else {
-				showStatus(MESSAGES.unexpected, 'error');
-			}
-		} finally {
-			button.disabled = false;
+			response = await fetch(API, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+				body: JSON.stringify({ url: url, reuseExisting: true })
+			});
+		} catch (e) {
+			showStatus(MESSAGES.network, 'error');
+			return;
+		}
+		if (response.status === 201) {
+			showResult(await response.json());
+			showStatus('');
+		} else if (response.status === 200) {
+			showResult(await response.json());
+			showStatus(MESSAGES.renewed, 'success');
+		} else if (response.status === 400) {
+			showStatus((await problemDetail(response)) || MESSAGES.unexpected, 'error');
+		} else if (response.status === 503) {
+			showStatus(MESSAGES.unavailable, 'error');
+		} else {
+			showStatus(MESSAGES.unexpected, 'error');
 		}
 	}
 
+	/** Al tocar el ícono se acorta la pestaña activa, sin pasos extra (consigna, §11.2). */
 	async function init() {
 		const [tab] = await ext.tabs.query({ active: true, currentWindow: true });
 		const url = tab && tab.url;
@@ -125,14 +135,14 @@
 		pageUrl.title = url || '';
 
 		if (!isShortenable(url)) {
-			button.disabled = true;
 			showStatus(MESSAGES.notShortenable, 'warning');
 			return;
 		}
-		tabUrl = url;
-		// No se acorta al abrir: recién cuando el usuario aprieta ACORTAR.
-		button.addEventListener('click', shorten);
-		button.disabled = false;
+		if (isOwnShortLink(url)) {
+			showStatus(MESSAGES.alreadyShort, 'warning');
+			return;
+		}
+		await shorten(url);
 	}
 
 	copyButton.addEventListener('click', async function () {

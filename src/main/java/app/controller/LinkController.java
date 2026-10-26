@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.net.URI;
 import java.util.Locale;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
@@ -39,6 +40,7 @@ public class LinkController {
 	private QrService qrService;
 
 	@Operation(summary = "Acorta una URL; el enlace vence a los 60 minutos")
+	@ApiResponse(responseCode = "200", description = "Con reuseExisting=true: la URL ya tenía un enlace vigente y se renovó 60 minutos")
 	@ApiResponse(responseCode = "201", description = "Enlace creado")
 	@ApiResponse(responseCode = "400", description = "URL inválida",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = ProblemDetail.class)))
@@ -46,6 +48,12 @@ public class LinkController {
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = ProblemDetail.class)))
 	@PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<ShortLinkResponse> shorten(@RequestBody ShortenRequest request) {
+		if (request.reuse()) {
+			Optional<ShortLinkResponse> renewed = linkService.renew(request.url());
+			if (renewed.isPresent()) {
+				return ResponseEntity.ok(renewed.get());
+			}
+		}
 		ShortLinkResponse response = linkService.shorten(request.url());
 		return ResponseEntity.created(URI.create(response.shortUrl())).body(response);
 	}

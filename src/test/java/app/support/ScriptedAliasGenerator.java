@@ -3,6 +3,7 @@ package app.support;
 import app.service.AliasGenerator;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -30,9 +31,9 @@ public class ScriptedAliasGenerator extends AliasGenerator {
 	}
 
 	@Override
-	public String generate() {
+	public String generate(Set<String> taken) {
 		calls.incrementAndGet();
 		String next = forced.poll();
-		return next != null ? next : super.generate();
+		return next != null ? next : super.generate(taken);
 	}
 }

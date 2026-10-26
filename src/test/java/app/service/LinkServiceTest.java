@@ -14,6 +14,7 @@ import app.support.TestBeans;
 import app.support.TestDb;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -75,6 +76,76 @@ class LinkServiceTest {
 			assertThat(link.expiresAt()).isEqualTo(EXPIRES);
 			assertThat(link.secondsRemaining()).isEqualTo(3600);
 			assertThat(db.find("abcde").getOriginalUrl()).isEqualTo("https://ejemplo.com");
+		}
+
+		@Test
+		void newLinksGetTheShortestSequentialAliases() {
+			assertThat(List.of(service.shorten(TARGET), service.shorten(TARGET), service.shorten(TARGET)))
+					.extracting(ShortLinkResponse::shortUrl)
+					.containsExactly("https://sho.rt/1", "https://sho.rt/2", "https://sho.rt/3");
+		}
+
+		@Test
+		void aliasOfAnExpiredLinkIsReusedBeforeALongerOne() {
+			db.store("1", "https://uno.com", NOW, EXPIRES);
+			db.store("2", "https://dos.com", NOW.minus(Duration.ofHours(2)), NOW.minus(Duration.ofHours(1)));
+			db.store("3", "https://tres.com", NOW, EXPIRES);
+
+			ShortLinkResponse link = service.shorten("https://nuevo.com");
+
+			assertThat(link.alias()).isEqualTo("2");
+			assertThat(db.find("2").getOriginalUrl()).isEqualTo("https://nuevo.com");
+			assertThat(db.count()).isEqualTo(3);
+		}
+
+		@Test
+		void aliasOfAPurgedLinkIsReused() {
+			db.store("1", "https://uno.com", NOW, EXPIRES);
+			db.store("3", "https://tres.com", NOW, EXPIRES);
+
+			assertThat(service.shorten("https://nuevo.com").alias()).isEqualTo("2");
+			assertThat(service.shorten("https://otro.com").alias()).isEqualTo("4");
+		}
+
+		@Test
+		void existingRandomAliasesKeepWorkingAndAreNeverReassigned() {
+			db.store("xt3se", "https://viejo.com", NOW, EXPIRES);
+
+			assertThat(service.shorten("https://nuevo.com").alias()).isEqualTo("1");
+			assertThat(service.resolve("xt3se")).contains("https://viejo.com");
+		}
+
+		@Test
+		void tc25_smallestAliasThatWouldRedirectToItselfIsSkipped() {
+			ShortLinkResponse link = service.shorten("https://sho.rt/1");
+
+			assertThat(link.alias()).isEqualTo("2");
+			assertThat(db.find("1")).isNull();
+		}
+
+		@Test
+		void concurrentCreationsThatAllSeeTheSameFreeAliasGetConsecutiveDistinctAliases() throws Exception {
+			int threads = 5;
+			LinkService allSeeAliasOneFree = new BarrierAfterFirstReads(threads);
+			beanFactory.autowireBean(allSeeAliasOneFree);
+
+			ExecutorService pool = Executors.newFixedThreadPool(threads);
+			try {
+				List<Future<ShortLinkResponse>> futures = new ArrayList<>();
+				for (int i = 0; i < threads; i++) {
+					String url = "https://ejemplo.com/" + i;
+					futures.add(pool.submit(() -> allSeeAliasOneFree.shorten(url)));
+				}
+				List<String> aliases = new ArrayList<>();
+				for (Future<ShortLinkResponse> future : futures) {
+					aliases.add(future.get(60, TimeUnit.SECONDS).alias());
+				}
+
+				assertThat(aliases).containsExactlyInAnyOrder("1", "2", "3", "4", "5");
+				assertThat(db.count()).isEqualTo(threads);
+			} finally {
+				pool.shutdownNow();
+			}
 		}
 
 		@Test
@@ -189,6 +260,50 @@ class LinkServiceTest {
 			} finally {
 				pool.shutdownNow();
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Renovación de un enlace vigente de la misma URL (extensión)")
+	class Renew {
+
+		@Test
+		void renewsTheLiveLinkForSixtyMinutesFromNow() {
+			db.store("1", TARGET, NOW, EXPIRES);
+			clock.advance(Duration.ofMinutes(45));
+
+			ShortLinkResponse link = service.renew(TARGET).orElseThrow();
+
+			Instant renewedUntil = NOW.plus(Duration.ofMinutes(105));
+			assertThat(link.alias()).isEqualTo("1");
+			assertThat(link.expiresAt()).isEqualTo(renewedUntil);
+			assertThat(link.secondsRemaining()).isEqualTo(3600);
+			assertThat(db.find("1").getExpiresAt()).isEqualTo(renewedUntil);
+			assertThat(db.count()).isEqualTo(1);
+		}
+
+		@Test
+		void doesNothingWhenTheUrlHasNoLiveLink() {
+			db.store("1", TARGET, NOW.minus(Duration.ofHours(2)), NOW.minus(Duration.ofHours(1)));
+			db.store("2", "https://otra.com", NOW, EXPIRES);
+
+			assertThat(service.renew(TARGET)).isEmpty();
+			assertThat(db.find("1").getExpiresAt()).isEqualTo(NOW.minus(Duration.ofHours(1)));
+			assertThat(db.find("2").getExpiresAt()).isEqualTo(EXPIRES);
+		}
+
+		@Test
+		void withSeveralLiveLinksRenewsTheMostRecent() {
+			db.store("1", TARGET, NOW.minus(Duration.ofMinutes(20)), NOW.plus(Duration.ofMinutes(40)));
+			db.store("2", TARGET, NOW.minus(Duration.ofMinutes(5)), NOW.plus(Duration.ofMinutes(55)));
+
+			assertThat(service.renew(TARGET).orElseThrow().alias()).isEqualTo("2");
+			assertThat(db.find("1").getExpiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(40)));
+		}
+
+		@Test
+		void rejectsAnInvalidUrl() {
+			assertThatThrownBy(() -> service.renew("ftp://ejemplo.com")).isInstanceOf(InvalidUrlException.class);
 		}
 	}
 

@@ -11,11 +11,13 @@ Trabajo Práctico Integrador – **Paradigmas de Programación VI** – Etapa 1
 
 Pegás una dirección larga y obtenés un **enlace corto y su código QR, válidos por 60 minutos**. Después, el enlace responde "Este enlace expiró o no existe" y el alias puede volver a usarse.
 
+Los alias son lo más cortos posible: `/1`, `/2`, …, `/9`, `/a`, …, `/z`, `/10`… Cada enlace nuevo recibe **el menor alias libre**, así que el de un enlace vencido se reutiliza antes de pasar a uno más largo.
+
 Hay dos clientes: la **página web** y la **extensión para Chrome y Firefox**. Los dos usan la misma API.
 
 | Endpoint | Qué hace |
 | :--- | :--- |
-| `POST /api/v1/links` con `{"url": "..."}` | Crea el enlace → `201` con `shortUrl`, `expiresAt`, `secondsRemaining` y `qrUrl`. `400` si la URL es inválida, `503` si no hay alias libres |
+| `POST /api/v1/links` con `{"url": "..."}` | Crea el enlace → `201` con `shortUrl`, `expiresAt`, `secondsRemaining` y `qrUrl`. `400` si la URL es inválida, `503` si no hay alias libres. Con `"reuseExisting": true` (lo usa la extensión), si la URL ya tiene un enlace vigente lo renueva 60 minutos y responde `200` |
 | `GET /{alias}` | `302` a la URL original mientras está vigente; `404` (misma página) si venció o no existe |
 | `GET /api/v1/links/{alias}/qr?size=256&download=false` | PNG del QR (128 a 1024 px). Con `download=true` se descarga como `{alias}.png` |
 
@@ -47,7 +49,7 @@ APP_BASE_URL=http://ip-o-dominio:8080 java -jar shortener.jar
 
 ## Extensión para Chrome y Firefox
 
-La carpeta [`browser-extension/`](browser-extension/) es la extensión (Manifest V3, el mismo código para los dos navegadores). Al abrirla muestra la dirección de la pestaña activa; con **ACORTAR** genera el enlace y muestra el QR, los botones para copiar y descargar el QR, y la hora de vencimiento.
+La carpeta [`browser-extension/`](browser-extension/) es la extensión (Manifest V3, el mismo código para los dos navegadores). Al tocar su ícono (un eslabón de cadena) **acorta la pestaña activa sin más pasos** y muestra el enlace, el QR, los botones para copiar y descargar el QR, y la fecha y hora de vencimiento. Si la página ya estaba acortada, muestra el mismo enlace y renueva su vigencia por 60 minutos. Si la pestaña ya es un enlace corto del acortador, no lo vuelve a acortar.
 
 Usa el servidor indicado en `config.js`, que es `http://localhost:8080`: **la aplicación tiene que estar levantada**.
 
@@ -62,13 +64,15 @@ Usa el servidor indicado en `config.js`, que es `http://localhost:8080`: **la ap
 2. **Cargar complemento temporal…** → elegir `browser-extension/manifest.json` (o el `.zip`).
 3. Firefox la quita al cerrarse: es una carga temporal porque la extensión no está firmada.
 
-En páginas que no son http/https (por ejemplo `chrome://extensions` o una pestaña nueva) el botón ACORTAR aparece deshabilitado con el aviso "Esta página no se puede acortar (solo http/https)".
+En páginas que no son http/https (por ejemplo `chrome://extensions` o una pestaña nueva) muestra el aviso "Esta página no se puede acortar (solo http/https)".
 
 Para generar el `.zip` de la extensión en `build/extension/`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\package-extension.ps1
 ```
+
+Los íconos (`browser-extension/icons/`, 16 a 128 px) se regeneran con `scripts\generate-extension-icons.ps1`.
 
 ## Estructura del código
 

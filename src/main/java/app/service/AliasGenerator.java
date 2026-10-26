@@ -1,47 +1,48 @@
 package app.service;
 
-import java.security.SecureRandom;
 import java.util.List;
-import java.util.Random;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Alias aleatorio de largo fijo sobre el alfabeto configurado, salteando palabras reservadas (D8-D10).
- * No garantiza que esté libre: de eso se ocupa LinkService, que reintenta.
+ * Alias más corto disponible: el menor número n ≥ 1 escrito en base N con el alfabeto configurado
+ * (1, 2, …, z, 10, 11, …), salteando los ocupados y las palabras reservadas (D8-D10).
+ * No garantiza que siga libre al guardarlo: de eso se ocupa LinkService, que reintenta.
  */
 @Component
 public class AliasGenerator {
 
-	static final int MAX_RESERVED_RETRIES = 100;
-
-	@Value("${app.alias.length}")
-	int length;
-
+	/** El primer carácter hace de cero: nunca aparece solo ni a la izquierda. */
 	@Value("${app.alias.alphabet}")
 	String alphabet;
 
 	@Value("${app.alias.reserved}")
 	List<String> reserved;
 
-	private final Random random = new SecureRandom();
-
-	public String generate() {
-		for (int i = 0; i < MAX_RESERVED_RETRIES; i++) {
-			String candidate = randomString();
-			if (!isReserved(candidate)) {
+	/** @param taken alias que no se pueden asignar (vigentes o descartados) */
+	public String generate(Set<String> taken) {
+		// Entre los primeros |taken| + |reserved| + 1 números siempre queda al menos uno libre.
+		long limit = taken.size() + reserved.size() + 1L;
+		for (long n = 1; n <= limit; n++) {
+			String candidate = encode(n);
+			if (!taken.contains(candidate) && !isReserved(candidate)) {
 				return candidate;
 			}
 		}
-		throw new IllegalStateException("No se pudo generar un alias que no sea palabra reservada; revisar app.alias.*");
+		throw new IllegalStateException("No se encontró un alias libre; revisar app.alias.*");
 	}
 
-	private String randomString() {
-		StringBuilder alias = new StringBuilder(length);
-		for (int i = 0; i < length; i++) {
-			alias.append(alphabet.charAt(random.nextInt(alphabet.length())));
+	String encode(long n) {
+		int base = alphabet.length();
+		if (base < 2) {
+			throw new IllegalStateException("app.alias.alphabet necesita al menos dos caracteres");
 		}
-		return alias.toString();
+		StringBuilder alias = new StringBuilder();
+		for (long value = n; value > 0; value /= base) {
+			alias.append(alphabet.charAt((int) (value % base)));
+		}
+		return alias.reverse().toString();
 	}
 
 	private boolean isReserved(String candidate) {
