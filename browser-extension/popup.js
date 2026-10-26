@@ -4,14 +4,18 @@
 	// Firefox expone `browser` y Chrome `chrome`; en Manifest V3 los dos devuelven promesas.
 	const ext = globalThis.browser ?? globalThis.chrome;
 	const API = PP6_CONFIG.apiBaseUrl + '/api/v1/links';
-	// Mismo patrón que GET /{alias} en RedirectController.
-	const ALIAS_PATH = /^\/[A-Za-z0-9]{1,16}$/;
+	const ME_API = PP6_CONFIG.apiBaseUrl + '/api/v1/me';
+	// Mismos patrones que RedirectController: /{alias o usuario} y /{usuario}/{alias}.
+	const SHORT_PATH = /^\/[A-Za-z0-9-]{1,20}(\/[A-Za-z0-9-]{1,32})?$/;
 
 	const MESSAGES = {
 		loading: 'Acortando…',
 		notShortenable: 'Esta página no se puede acortar (solo http/https)',
 		alreadyShort: 'Esta página ya es un enlace corto de nuestro acortador.',
 		renewed: 'Esta página ya estaba acortada: renovamos el enlace por 60 minutos.',
+		personal: 'Enlace personal de ',
+		anonymous: 'Enlace público. Ingresá en el acortador para que queden a tu nombre.',
+		noUsername: 'Enlace público. Elegí tu nombre en el acortador para crear enlaces personales.',
 		unavailable: 'No pudimos generar el enlace en este momento. Volvé a abrir la extensión en unos segundos.',
 		network: 'No se pudo conectar con el servidor. Revisá tu conexión y volvé a abrir la extensión.',
 		unexpected: 'Ocurrió un error inesperado. Volvé a abrir la extensión.',
@@ -21,6 +25,7 @@
 	};
 
 	const pageUrl = document.getElementById('page-url');
+	const mode = document.getElementById('mode');
 	const status = document.getElementById('status');
 	const result = document.getElementById('result');
 	const shortUrl = document.getElementById('short-url');
@@ -47,7 +52,12 @@
 
 	function isOwnShortLink(url) {
 		const parsed = new URL(url);
-		return parsed.origin === new URL(PP6_CONFIG.apiBaseUrl).origin && ALIAS_PATH.test(parsed.pathname);
+		return parsed.origin === new URL(PP6_CONFIG.apiBaseUrl).origin && SHORT_PATH.test(parsed.pathname);
+	}
+
+	function showMode(text) {
+		mode.textContent = text;
+		mode.hidden = false;
 	}
 
 	function formatExpiration(isoInstant) {
@@ -98,16 +108,49 @@
 		}
 	}
 
-	/** Con reuseExisting el servidor devuelve 200 y renueva el enlace si la página ya estaba acortada. */
+	function post(endpoint, body, withSession) {
+		return fetch(endpoint, {
+			method: 'POST',
+			credentials: withSession ? 'include' : 'omit',
+			headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+			body: JSON.stringify(body)
+		});
+	}
+
+	/**
+	 * La cuenta con la que se ingresó en el acortador, o null. La extensión no tiene ingreso propio:
+	 * usa la cookie de sesión del navegador, que llega porque la extensión tiene permiso sobre el host (D60).
+	 */
+	async function currentAccount() {
+		try {
+			const response = await fetch(ME_API, { credentials: 'include', headers: { 'Accept': 'application/json' } });
+			return response.ok ? await response.json() : null;
+		} catch (e) {
+			return null;
+		}
+	}
+
+	/**
+	 * Con sesión y nombre elegido, enlace personal; si no, público. Con reuseExisting el servidor
+	 * devuelve 200 y renueva el enlace si la página ya estaba acortada.
+	 */
 	async function shorten(url) {
 		showStatus(MESSAGES.loading, 'info');
+		const account = await currentAccount();
 		let response;
 		try {
-			response = await fetch(API, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-				body: JSON.stringify({ url: url, reuseExisting: true })
-			});
+			if (account && account.usernameChosen) {
+				response = await post(ME_API + '/links', { url: url, alias: '', reuseExisting: true }, true);
+				if (response.status === 401) {
+					response = null;
+				} else {
+					showMode(MESSAGES.personal + account.username + '.');
+				}
+			}
+			if (!response) {
+				showMode(account && !account.usernameChosen ? MESSAGES.noUsername : MESSAGES.anonymous);
+				response = await post(API, { url: url, reuseExisting: true }, false);
+			}
 		} catch (e) {
 			showStatus(MESSAGES.network, 'error');
 			return;

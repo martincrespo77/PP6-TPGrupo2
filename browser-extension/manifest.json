@@ -2,8 +2,8 @@
 	"manifest_version": 3,
 	"name": "Acortador de enlaces – PP6",
 	"short_name": "Acortador PP6",
-	"version": "1.1.0",
-	"description": "Acorta la página que estás viendo: enlace corto de 60 minutos con su código QR.",
+	"version": "1.2.0",
+	"description": "Acorta la página que estás viendo: enlace corto de 60 minutos con su código QR. Si ingresaste en el acortador, queda a tu nombre.",
 	"icons": {
 		"16": "icons/icon-16.png",
 		"32": "icons/icon-32.png",

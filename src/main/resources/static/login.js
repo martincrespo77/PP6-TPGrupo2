@@ -1,14 +1,21 @@
 'use strict';
 
+/**
+ * Ingreso de la computadora por QR (D51). Cada código dura app.login.ttl: al vencer se pide otro y el
+ * anterior deja de servir (D58). Después de MAX_CODES seguidos sin que nadie lo escanee se deja de
+ * renovar, para no consultar al servidor indefinidamente con la pestaña olvidada.
+ */
 (function () {
 	const API = '/api/v1/login-requests';
 	const POLL_MILLIS = 2000;
+	const MAX_CODES = 10;
 
 	const MESSAGES = {
 		loading: 'Generando el código…',
 		waiting: 'Esperando que lo apruebes desde el celular…',
 		approved: 'Listo, entrando…',
 		expired: 'El código venció.',
+		sessionExpired: 'Tu sesión en esta computadora se cerró por tiempo. Escaneá el código para volver a entrar.',
 		network: 'No se pudo conectar con el servidor. Revisá tu conexión y probá de nuevo.',
 		unexpected: 'Ocurrió un error inesperado. Probá de nuevo.'
 	};
@@ -17,9 +24,11 @@
 	const status = document.getElementById('status');
 	const countdown = document.getElementById('countdown');
 	const retry = document.getElementById('retry');
+	const notice = document.getElementById('notice');
 
 	let pollTimer = null;
 	let countdownTimer = null;
+	let codesShown = 0;
 
 	function showStatus(message, kind) {
 		status.textContent = message || '';
@@ -36,7 +45,7 @@
 		clearInterval(countdownTimer);
 		let remaining = seconds;
 		const render = function () {
-			countdown.textContent = 'El código vence en ' + Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0') + '.';
+			countdown.textContent = 'El código se renueva en ' + Math.floor(remaining / 60) + ':' + String(remaining % 60).padStart(2, '0') + '.';
 		};
 		render();
 		countdownTimer = setInterval(function () {
@@ -45,8 +54,13 @@
 		}, 1000);
 	}
 
+	/** El código vencido ya no sirve: se reemplaza por uno nuevo, salvo que se hayan mostrado demasiados. */
 	function showExpired() {
 		stop();
+		if (codesShown < MAX_CODES) {
+			start();
+			return;
+		}
 		qr.hidden = true;
 		retry.hidden = false;
 		showStatus(MESSAGES.expired, 'warning');
@@ -96,11 +110,17 @@
 			return;
 		}
 		const body = await response.json();
+		codesShown += 1;
 		qr.src = API + '/current/qr?t=' + Date.now();
 		qr.hidden = false;
 		showStatus(MESSAGES.waiting, 'info');
 		startCountdown(body.secondsRemaining);
 		pollTimer = setTimeout(poll, POLL_MILLIS);
+	}
+
+	function restart() {
+		codesShown = 0;
+		start();
 	}
 
 	/** Si la sesión ya está iniciada no hace falta el QR. */
@@ -117,6 +137,10 @@
 		await start();
 	}
 
-	retry.addEventListener('click', start);
+	if (new URLSearchParams(location.search).get('sesion') === 'vencida') {
+		notice.textContent = MESSAGES.sessionExpired;
+		notice.hidden = false;
+	}
+	retry.addEventListener('click', restart);
 	init();
 })();

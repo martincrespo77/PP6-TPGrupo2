@@ -28,6 +28,10 @@
 					</div>
 					<button id="save-username" type="submit">GUARDAR</button>
 				</div>
+				<div id="previous-name" class="reservation" role="status" hidden>
+					<p id="previous-name-text"></p>
+					<button id="revert-username" type="button" class="secondary">VOLVER AL NOMBRE ANTERIOR</button>
+				</div>
 			</form>
 
 			<form id="link-form" class="link-form" novalidate hidden>
@@ -83,8 +87,19 @@
 			<button id="logout" type="button" class="link-button">Cerrar sesión</button>
 		</footer>
 	</main>
+
+	<dialog id="session-dialog" class="session-dialog" aria-labelledby="session-title" aria-describedby="session-text">
+		<h2 id="session-title">¿Seguís ahí?</h2>
+		<p id="session-text"></p>
+		<div class="dialog-actions">
+			<button id="session-extend" type="button">EXTENDER SESIÓN</button>
+			<button id="session-logout" type="button" class="secondary">Cerrar sesión</button>
+		</div>
+	</dialog>
+
 	<script src="/session.js"></script>
 	<script src="/result-card.js"></script>
+	<script src="/session-timer.js"></script>
 	<script src="/cuenta.js"></script>
 </body>
 </html>

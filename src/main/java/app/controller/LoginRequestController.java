@@ -1,5 +1,6 @@
 package app.controller;
 
+import app.DesktopSession;
 import app.dto.LoginStatusResponse;
 import app.exception.LoginRequestNotFoundException;
 import app.mappings.LoginRequest;
@@ -57,13 +58,17 @@ public class LoginRequestController {
 	@Autowired
 	private Clock clock;
 
+	@Autowired
+	private DesktopSession desktopSession;
+
 	private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
 
-	@Operation(summary = "Computadora: crea un código de ingreso nuevo y lo guarda en su sesión")
+	@Operation(summary = "Computadora: crea un código de ingreso nuevo y lo guarda en su sesión; el anterior sin aprobar deja de servir")
 	@ApiResponse(responseCode = "201", description = "Código creado; el QR está en /current/qr")
 	@PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
 	@ResponseStatus(HttpStatus.CREATED)
 	public LoginStatusResponse create(HttpSession session) {
+		loginRequestService.discard((String) session.getAttribute(SESSION_CODE));
 		LoginRequest request = loginRequestService.create();
 		session.setAttribute(SESSION_CODE, request.getCode());
 		return LoginStatusResponse.of(LoginRequestService.State.PENDING.name(), request.getExpiresAt(), clock.instant());
@@ -110,9 +115,13 @@ public class LoginRequestController {
 		loginRequestService.approve(code, authentication.getName());
 	}
 
-	/** Nuevo id de sesión al autenticarse, para que un id robado antes del ingreso no sirva (session fixation). */
+	/**
+	 * Nuevo id de sesión al autenticarse, para que un id robado antes del ingreso no sirva (session
+	 * fixation). Es la sesión de una computadora: vence sola (D59).
+	 */
 	private void signIn(String googleSubject, HttpServletRequest request, HttpServletResponse response) {
 		request.changeSessionId();
+		desktopSession.start(request.getSession());
 		Authentication authentication = UsernamePasswordAuthenticationToken.authenticated(
 				googleSubject, null, AuthorityUtils.createAuthorityList("ROLE_USER"));
 		SecurityContext context = SecurityContextHolder.createEmptyContext();

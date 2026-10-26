@@ -42,6 +42,7 @@ class LinkServiceTest {
 	private static final String TARGET = "https://ejemplo.com/destino";
 
 	@Autowired private LinkService service;
+	@Autowired private UserService userService;
 	@Autowired private ScriptedAliasGenerator generator;
 	@Autowired private MutableClock clock;
 	@Autowired private TestDb db;
@@ -157,6 +158,19 @@ class LinkServiceTest {
 
 			assertThat(link.alias()).isEqualTo("yyyyy");
 			assertThat(db.find("xxxxx").getOriginalUrl()).isEqualTo("https://original.com");
+		}
+
+		@Test
+		void neverTakesTheAddressOfAUserNorOfAReservedPreviousName() {
+			db.storeUser("google-ana", "anita", NOW);
+			userService.chooseUsername("google-ana", "anabel");
+			generator.force("anita", "anabel", "libre");
+
+			ShortLinkResponse link = service.shorten("https://otro.com");
+
+			assertThat(link.alias()).isEqualTo("libre");
+			assertThat(db.find("anita")).isNull();
+			assertThat(db.find("anabel")).isNull();
 		}
 
 		@Test

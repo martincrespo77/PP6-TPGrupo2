@@ -87,7 +87,16 @@ class BrowserExtensionFilesTest {
 	void scriptReusesAnExistingLinkAndNeverShortensOneOfOurShortLinks() throws Exception {
 		assertThat(read("popup.js"))
 				.contains("reuseExisting: true", "response.status === 200", "isOwnShortLink(url)",
-						"/^\\/[A-Za-z0-9]{1,16}$/");
+						"/^\\/[A-Za-z0-9-]{1,20}(\\/[A-Za-z0-9-]{1,32})?$/");
+	}
+
+	@Test
+	void signedInUsersGetPersonalLinksAndOthersFallBackToPublicOnes() throws Exception {
+		assertThat(read("popup.js"))
+				.contains("credentials: 'include'", "'/api/v1/me'", "ME_API + '/links'", "account.usernameChosen",
+						"response.status === 401", "credentials: withSession ? 'include' : 'omit'");
+		assertThat(read("popup.html")).contains("id=\"mode\"");
+		assertThat(strings(manifest().path("permissions"))).containsExactly("activeTab");
 	}
 
 	@Test

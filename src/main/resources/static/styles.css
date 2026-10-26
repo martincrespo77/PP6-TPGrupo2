@@ -114,8 +114,30 @@ button, .button {
 button:hover:not(:disabled), .button:hover { background: var(--accent-dark); color: #fff; }
 button:disabled { opacity: .55; cursor: not-allowed; }
 
-.button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--border); padding: .7rem 1.1rem; }
-.button.secondary:hover { background: #f5f3fd; color: var(--ink); }
+.button.secondary, button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--border); padding: .7rem 1.1rem; }
+.button.secondary:hover, button.secondary:hover:not(:disabled) { background: #f5f3fd; color: var(--ink); }
+
+.reservation {
+	margin-top: 1rem;
+	padding: .9rem 1rem;
+	border: 1px solid var(--border);
+	border-left: 4px solid var(--accent);
+	border-radius: 8px;
+	background: #f8f6fe;
+}
+.reservation p { margin: 0 0 .75rem; font-size: .92rem; }
+
+.session-dialog {
+	max-width: 26rem;
+	padding: 1.5rem;
+	border: 0;
+	border-radius: 12px;
+	color: var(--text);
+	box-shadow: 0 12px 40px rgba(43, 51, 64, .25);
+}
+.session-dialog::backdrop { background: rgba(43, 51, 64, .45); }
+.session-dialog h2 { margin: 0 0 .5rem; font-size: 1.2rem; color: var(--ink); }
+.dialog-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.1rem; }
 
 button.dark { background: var(--ink); color: #fff; padding: .7rem 1.4rem; }
 button.dark:hover:not(:disabled) { background: #2b3340; }

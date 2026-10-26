@@ -70,6 +70,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 		return problem;
 	}
 
+	@ExceptionHandler(UsernameChangeLockedException.class)
+	ProblemDetail usernameChangeLocked(UsernameChangeLockedException e) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+				"Tu nombre anterior \"" + e.getPreviousUsername()
+						+ "\" sigue reservado: hasta que se libere solo podés volver a él");
+		problem.setTitle("Cambio de nombre en curso");
+		problem.setProperty("previousUsername", e.getPreviousUsername());
+		problem.setProperty("releasedAt", e.getReleasedAt());
+		return problem;
+	}
+
 	@ExceptionHandler(UsernameNotChosenException.class)
 	ProblemDetail usernameNotChosen(UsernameNotChosenException e) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
@@ -96,7 +107,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(LoginRequestNotFoundException.class)
 	ProblemDetail loginRequestNotFound(LoginRequestNotFoundException e) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND,
-				"El código venció o ya se usó. Generá uno nuevo en la computadora");
+				"El código venció o ya se usó. Escaneá el QR que se ve ahora en la computadora");
 		problem.setTitle("Código no disponible");
 		return problem;
 	}

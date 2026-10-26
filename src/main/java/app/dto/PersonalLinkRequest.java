@@ -8,5 +8,12 @@ public record PersonalLinkRequest(
 		String url,
 		@Schema(description = "Alias dentro de tu espacio: 1 a 32 letras, números o guiones. Vacío: se genera uno aleatorio",
 				example = "facultad")
-		String alias) {
+		String alias,
+		@Schema(description = "true para reutilizar y renovar 60 minutos tu enlace vigente a la misma URL, si existe (lo usa la extensión)",
+				defaultValue = "false")
+		Boolean reuseExisting) {
+
+	public boolean reuse() {
+		return Boolean.TRUE.equals(reuseExisting);
+	}
 }

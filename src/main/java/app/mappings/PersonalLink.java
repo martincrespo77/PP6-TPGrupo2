@@ -62,6 +62,11 @@ public class PersonalLink {
 		return !now.isBefore(expiresAt);
 	}
 
+	/** Renovación: el enlace sigue igual y vence más tarde. */
+	public void extendUntil(Instant expiresAt) {
+		this.expiresAt = expiresAt;
+	}
+
 	/** Cambia solo el alias: el destino y el vencimiento no se tocan. */
 	public void changeAlias(String alias) {
 		this.alias = alias;

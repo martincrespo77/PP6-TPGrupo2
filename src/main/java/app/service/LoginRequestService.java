@@ -60,6 +60,21 @@ public class LoginRequestService {
 		return request;
 	}
 
+	/**
+	 * Borra un código todavía sin aprobar. La computadora lo llama al reemplazar su QR por uno nuevo,
+	 * así el anterior (por ejemplo, fotografiado) deja de servir antes de vencer (D58).
+	 */
+	@Transactional
+	public void discard(String code) {
+		if (code == null) {
+			return;
+		}
+		em.createQuery("delete from LoginRequest r where r.code = :code and r.status = :pending")
+				.setParameter("code", code)
+				.setParameter("pending", LoginRequest.Status.PENDING)
+				.executeUpdate();
+	}
+
 	/** Dirección que codifica el QR; la abre el celular. */
 	public String approvalUrl(String code) {
 		return baseUrl.replaceAll("/+$", "") + "/l/" + code;

@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -68,7 +69,7 @@ class AccountAndLoginTest {
 			mvc.perform(post("/api/v1/login-requests").session(computer).with(csrf()))
 					.andExpect(status().isCreated())
 					.andExpect(jsonPath("$.status").value("PENDING"))
-					.andExpect(jsonPath("$.secondsRemaining").value(120));
+					.andExpect(jsonPath("$.secondsRemaining").value(60));
 			String code = (String) computer.getAttribute(LoginRequestController.SESSION_CODE);
 
 			byte[] png = mvc.perform(get("/api/v1/login-requests/current/qr").session(computer))
@@ -260,6 +261,23 @@ class AccountAndLoginTest {
 		}
 
 		@Test
+		void reuseExistingRenewsTheNewestLiveLinkToTheSameUrl() throws Exception {
+			db.storeUser("google-ana", "ana", TestBeans.START);
+			db.storePersonalLink("ana", "facultad", "https://undef.edu.ar", TestBeans.START, TestBeans.START.plus(Duration.ofMinutes(60)));
+			clock.advance(Duration.ofMinutes(30));
+
+			mvc.perform(post("/api/v1/me/links").with(google("google-ana")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+							.content("{\"url\":\"https://undef.edu.ar\",\"alias\":\"\",\"reuseExisting\":true}"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.shortUrl").value("https://sho.rt/ana/facultad"))
+					.andExpect(jsonPath("$.secondsRemaining").value(3600));
+			mvc.perform(post("/api/v1/me/links").with(google("google-ana")).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+							.content("{\"url\":\"https://otra.com\",\"alias\":\"\",\"reuseExisting\":true}"))
+					.andExpect(status().isCreated());
+			assertThat(db.countPersonalLinks()).isEqualTo(2);
+		}
+
+		@Test
 		void logoutEndsTheSession() throws Exception {
 			MockHttpSession session = new MockHttpSession();
 			mvc.perform(get("/api/v1/me").session(session).with(google("google-ana"))).andExpect(status().isOk());
@@ -267,6 +285,179 @@ class AccountAndLoginTest {
 			mvc.perform(post("/api/v1/logout").session(session).with(csrf())).andExpect(status().isOk());
 
 			assertThat(session.isInvalid()).isTrue();
+		}
+	}
+
+	@Nested
+	@DisplayName("Cambio de nombre: página /{usuario}, período de gracia y enlaces anteriores")
+	class Rename {
+
+		@BeforeEach
+		void anaHasALink() {
+			db.storeUser("google-ana", "ana", TestBeans.START);
+			db.storePersonalLink("ana", "facultad", "https://undef.edu.ar", TestBeans.START, TestBeans.START.plus(Duration.ofMinutes(60)));
+		}
+
+		private void rename(String username) throws Exception {
+			mvc.perform(put("/api/v1/me/username").with(google("google-ana")).with(csrf())
+							.contentType(MediaType.APPLICATION_JSON).content("{\"username\":\"" + username + "\"}"))
+					.andExpect(status().isOk());
+		}
+
+		@Test
+		void theUserAddressServesTheAccountPage() throws Exception {
+			mvc.perform(get("/ana"))
+					.andExpect(status().isOk())
+					.andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+					.andExpect(content().string(org.hamcrest.Matchers.containsString("/cuenta.js")));
+		}
+
+		@Test
+		void duringTheGracePeriodOldLinksShowTheNewAddressAndStillWork() throws Exception {
+			rename("ana-maria");
+
+			mvc.perform(get("/api/v1/me").with(google("google-ana")))
+					.andExpect(jsonPath("$.username").value("ana-maria"))
+					.andExpect(jsonPath("$.previousUsername").value("ana"))
+					.andExpect(jsonPath("$.secondsUntilPreviousReleased").value(600));
+			mvc.perform(get("/ana-maria/facultad"))
+					.andExpect(status().isFound())
+					.andExpect(header().string("Location", "https://undef.edu.ar"));
+			mvc.perform(get("/ana/facultad"))
+					.andExpect(status().isOk())
+					.andExpect(content().string(org.hamcrest.Matchers.containsString("https://sho.rt/ana-maria/facultad")))
+					.andExpect(content().string(org.hamcrest.Matchers.containsString("https://undef.edu.ar")));
+			mvc.perform(get("/ana"))
+					.andExpect(status().isFound())
+					.andExpect(header().string("Location", "/ana-maria"));
+		}
+
+		@Test
+		void afterTheGracePeriodTheOldNameNoLongerWorks() throws Exception {
+			rename("ana-maria");
+			clock.advance(Duration.ofMinutes(10));
+
+			mvc.perform(get("/ana/facultad")).andExpect(status().isNotFound());
+			mvc.perform(get("/ana")).andExpect(status().isNotFound());
+			mvc.perform(get("/ana-maria/facultad")).andExpect(status().isFound());
+		}
+
+		@Test
+		void aThirdNameIsRejectedUntilThePreviousOneIsReleased() throws Exception {
+			rename("ana-maria");
+
+			mvc.perform(put("/api/v1/me/username").with(google("google-ana")).with(csrf())
+							.contentType(MediaType.APPLICATION_JSON).content("{\"username\":\"otra\"}"))
+					.andExpect(status().isConflict())
+					.andExpect(jsonPath("$.previousUsername").value("ana"));
+			rename("ana");
+			mvc.perform(get("/ana/facultad")).andExpect(status().isFound());
+		}
+
+		@Test
+		void anotherAccountCannotTakeTheReservedName() throws Exception {
+			rename("ana-maria");
+
+			mvc.perform(put("/api/v1/me/username").with(google("google-beto")).with(csrf())
+							.contentType(MediaType.APPLICATION_JSON).content("{\"username\":\"ana\"}"))
+					.andExpect(status().isConflict());
+		}
+	}
+
+	@Nested
+	@DisplayName("Sesión de la computadora: vence sola y se puede extender")
+	class DesktopSessionLimit {
+
+		private MockHttpSession signInByQr() throws Exception {
+			db.storeUser("google-ana", "ana", TestBeans.START);
+			MockHttpSession computer = new MockHttpSession();
+			mvc.perform(post("/api/v1/login-requests").session(computer).with(csrf())).andExpect(status().isCreated());
+			String code = (String) computer.getAttribute(LoginRequestController.SESSION_CODE);
+			mvc.perform(post("/api/v1/login-requests/" + code + "/approve").with(google("google-ana")).with(csrf()))
+					.andExpect(status().isNoContent());
+			mvc.perform(get("/api/v1/login-requests/current").session(computer))
+					.andExpect(jsonPath("$.status").value("APPROVED"));
+			return computer;
+		}
+
+		@Test
+		void aNewQrDiscardsThePreviousCode() throws Exception {
+			db.storeUser("google-ana", "ana", TestBeans.START);
+			MockHttpSession computer = new MockHttpSession();
+			mvc.perform(post("/api/v1/login-requests").session(computer).with(csrf())).andExpect(status().isCreated());
+			String old = (String) computer.getAttribute(LoginRequestController.SESSION_CODE);
+			mvc.perform(post("/api/v1/login-requests").session(computer).with(csrf())).andExpect(status().isCreated());
+
+			mvc.perform(post("/api/v1/login-requests/" + old + "/approve").with(google("google-ana")).with(csrf()))
+					.andExpect(status().isNotFound());
+		}
+
+		@Test
+		void sessionReportsItsLimitAndCanBeExtended() throws Exception {
+			MockHttpSession computer = signInByQr();
+			mvc.perform(get("/api/v1/me/session").session(computer))
+					.andExpect(jsonPath("$.limited").value(true))
+					.andExpect(jsonPath("$.secondsRemaining").value(1800))
+					.andExpect(jsonPath("$.warningSeconds").value(120));
+
+			clock.advance(Duration.ofMinutes(29));
+			mvc.perform(post("/api/v1/me/session/extend").session(computer)).andExpect(status().isForbidden());
+			mvc.perform(post("/api/v1/me/session/extend").session(computer).with(csrf()))
+					.andExpect(jsonPath("$.secondsRemaining").value(1800));
+
+			clock.advance(Duration.ofMinutes(29));
+			mvc.perform(get("/api/v1/me").session(computer)).andExpect(status().isOk());
+		}
+
+		@Test
+		void expiredSessionIsClosed() throws Exception {
+			MockHttpSession computer = signInByQr();
+			clock.advance(Duration.ofMinutes(30));
+
+			mvc.perform(get("/api/v1/me").session(computer)).andExpect(status().isUnauthorized());
+			assertThat(computer.isInvalid()).isTrue();
+		}
+
+		@Test
+		void phoneSessionsAreNotLimited() throws Exception {
+			mvc.perform(get("/api/v1/me/session").with(google("google-ana")))
+					.andExpect(jsonPath("$.limited").value(false));
+		}
+	}
+
+	@Nested
+	@DisplayName("Extensión del navegador con la sesión iniciada")
+	class Extension {
+
+		private static final String EXTENSION = "chrome-extension://abcdefghijklmnop";
+
+		@Test
+		void preflightAllowsCredentialsOnlyForTheAccountApi() throws Exception {
+			mvc.perform(options("/api/v1/me/links").header("Origin", EXTENSION)
+							.header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "Content-Type"))
+					.andExpect(status().isOk())
+					.andExpect(header().string("Access-Control-Allow-Origin", EXTENSION))
+					.andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+			mvc.perform(options("/api/v1/me/links").header("Origin", "https://otro-sitio.com")
+							.header("Access-Control-Request-Method", "POST"))
+					.andExpect(status().isForbidden());
+		}
+
+		@Test
+		void createsPersonalLinksFromTheExtensionWithoutTheCsrfToken() throws Exception {
+			db.storeUser("google-ana", "ana", TestBeans.START);
+			String body = "{\"url\":\"https://undef.edu.ar\",\"alias\":\"\",\"reuseExisting\":true}";
+
+			mvc.perform(post("/api/v1/me/links").header("Origin", EXTENSION).with(google("google-ana"))
+							.contentType(MediaType.APPLICATION_JSON).content(body))
+					.andExpect(status().isCreated())
+					.andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+			mvc.perform(post("/api/v1/me/links").header("Origin", "https://otro-sitio.com").with(google("google-ana"))
+							.contentType(MediaType.APPLICATION_JSON).content(body))
+					.andExpect(status().isForbidden());
+			mvc.perform(put("/api/v1/me/username").header("Origin", EXTENSION).with(google("google-ana"))
+							.contentType(MediaType.APPLICATION_JSON).content("{\"username\":\"otra\"}"))
+					.andExpect(status().isForbidden());
 		}
 	}
 }

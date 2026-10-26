@@ -161,6 +161,46 @@ public class PersonalLinkService {
 				.filter(link -> !link.isExpired(now));
 	}
 
+	/**
+	 * Enlace vigente pedido con el nombre anterior de su dueño, mientras ese nombre siga reservado
+	 * (D56). Después, el nombre anterior ya no lleva a ningún enlace de esa cuenta.
+	 */
+	public Optional<MovedLink> findMoved(String previousUsername, String alias) {
+		Instant now = clock.instant();
+		return userService.findByReservedPreviousUsername(previousUsername)
+				.flatMap(owner -> Optional.ofNullable(find(owner.getUsername(), alias.toLowerCase(Locale.ROOT)))
+						.filter(link -> !link.isExpired(now))
+						.map(link -> new MovedLink(shortUrl(owner.getUsername(), link.getAlias()), link.getOriginalUrl(),
+								owner.getPreviousUsernameReleasedAt())));
+	}
+
+	/** @param oldNameReleasedAt cuándo deja de funcionar la dirección con el nombre anterior */
+	public record MovedLink(String newShortUrl, String targetUrl, Instant oldNameReleasedAt) {
+	}
+
+	/**
+	 * Si el usuario ya tiene un enlace vigente a esa URL, lo renueva app.link.ttl desde ahora (lo usa
+	 * la extensión, como D12 para los públicos). Con varios, el más reciente.
+	 */
+	@Transactional
+	public Optional<ShortLinkResponse> renew(String googleSubject, String url) {
+		urlValidator.validate(url);
+		AppUser owner = requireOwner(googleSubject);
+		Instant now = clock.instant();
+		Optional<PersonalLink> link = em.createQuery("""
+						select p from PersonalLink p where p.owner = :owner and p.originalUrl = :url and p.expiresAt > :now
+						order by p.createdAt desc""", PersonalLink.class)
+				.setParameter("owner", owner)
+				.setParameter("url", url)
+				.setParameter("now", now)
+				.setMaxResults(1)
+				.getResultStream()
+				.findFirst();
+		link.ifPresent(existing -> existing.extendUntil(now.plus(ttl)));
+		return link.map(existing -> ShortLinkResponse.from(existing, shortUrl(owner.getUsername(), existing.getAlias()),
+				qrUrl(owner.getUsername(), existing.getAlias()), now));
+	}
+
 	private PersonalLink find(String username, String alias) {
 		return em.createQuery("select p from PersonalLink p where p.owner.username = :username and p.alias = :alias",
 						PersonalLink.class)

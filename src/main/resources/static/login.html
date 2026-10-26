@@ -15,9 +15,11 @@
 		</header>
 
 		<div class="panel notice">
+			<p id="notice" class="status warning" role="alert" hidden></p>
 			<img id="login-qr" class="qr" width="256" height="256" alt="Código QR para ingresar desde el celular" hidden>
 			<p id="status" class="status" role="status" aria-live="polite"></p>
 			<p id="countdown" class="muted expires"></p>
+			<p class="muted hint">Por seguridad el código cambia solo cada tanto: escaneá el que se ve ahora.</p>
 			<button id="retry" type="button" hidden>Generar otro código</button>
 			<p class="muted login-alt">¿Estás en el celular? <a href="/oauth2/authorization/google">Ingresá con Google</a></p>
 		</div>

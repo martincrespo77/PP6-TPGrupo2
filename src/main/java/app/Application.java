@@ -38,6 +38,14 @@ public class Application implements WebMvcConfigurer {
 	 */
 	@Override
 	public void addCorsMappings(CorsRegistry registry) {
+		// Con la cookie de sesión, para que la extensión cree enlaces en el espacio del usuario logueado
+		// (D60). Va primero: gana la primera ruta que coincide.
+		registry.addMapping("/api/v1/me/**")
+				.allowedOriginPatterns(EXTENSION_ORIGINS)
+				.allowedMethods("GET", "POST")
+				.allowedHeaders(HttpHeaders.CONTENT_TYPE, HttpHeaders.ACCEPT)
+				.exposedHeaders(HttpHeaders.LOCATION)
+				.allowCredentials(true);
 		registry.addMapping("/api/**")
 				.allowedOriginPatterns(EXTENSION_ORIGINS)
 				.allowedMethods("GET", "POST")

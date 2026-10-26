@@ -1,9 +1,11 @@
 package app.controller;
 
+import app.DesktopSession;
 import app.dto.AccountResponse;
 import app.dto.ChangeAliasRequest;
 import app.dto.ChooseUsernameRequest;
 import app.dto.PersonalLinkRequest;
+import app.dto.SessionResponse;
 import app.dto.ShortLinkResponse;
 import app.mappings.AppUser;
 import app.service.PersonalLinkService;
@@ -13,7 +15,9 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpSession;
 import java.net.URI;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -43,6 +47,9 @@ public class AccountController {
 	@Autowired
 	private CurrentUser currentUser;
 
+	@Autowired
+	private DesktopSession desktopSession;
+
 	@Operation(summary = "Datos de la cuenta; da de alta al usuario en su primer ingreso")
 	@ApiResponse(responseCode = "200", description = "Cuenta")
 	@ApiResponse(responseCode = "401", description = "Sin sesión")
@@ -51,11 +58,12 @@ public class AccountController {
 		return response(currentUser.of(authentication));
 	}
 
-	@Operation(summary = "Elige o cambia el nombre de usuario (el aleatorio del alta hay que cambiarlo)")
+	@Operation(summary = "Elige o cambia el nombre de usuario (el aleatorio del alta hay que cambiarlo); "
+			+ "el anterior queda reservado unos minutos y mientras tanto solo se puede volver a él")
 	@ApiResponse(responseCode = "200", description = "Nombre guardado")
 	@ApiResponse(responseCode = "400", description = "Formato inválido o nombre reservado",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = ProblemDetail.class)))
-	@ApiResponse(responseCode = "409", description = "Otro usuario ya lo tiene",
+	@ApiResponse(responseCode = "409", description = "Otro usuario ya lo tiene, o hay un cambio de nombre en curso",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = ProblemDetail.class)))
 	@PutMapping(value = "/username", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public AccountResponse chooseUsername(Authentication authentication, @RequestBody ChooseUsernameRequest request) {
@@ -64,6 +72,7 @@ public class AccountController {
 	}
 
 	@Operation(summary = "Crea un enlace /{usuario}/{alias} que vence a los 60 minutos; sin alias, se genera uno aleatorio")
+	@ApiResponse(responseCode = "200", description = "Con reuseExisting=true: ya tenías un enlace vigente a esa URL y se renovó 60 minutos")
 	@ApiResponse(responseCode = "201", description = "Enlace creado")
 	@ApiResponse(responseCode = "400", description = "URL o alias inválidos",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE, schema = @Schema(implementation = ProblemDetail.class)))
@@ -72,6 +81,12 @@ public class AccountController {
 	@PostMapping(value = "/links", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<ShortLinkResponse> createLink(Authentication authentication, @RequestBody PersonalLinkRequest request) {
 		currentUser.of(authentication);
+		if (request.reuse()) {
+			Optional<ShortLinkResponse> renewed = personalLinkService.renew(authentication.getName(), request.url());
+			if (renewed.isPresent()) {
+				return ResponseEntity.ok(renewed.get());
+			}
+		}
 		ShortLinkResponse response = personalLinkService.create(authentication.getName(), request.url(), request.alias());
 		return ResponseEntity.created(URI.create(response.shortUrl())).body(response);
 	}
@@ -92,7 +107,23 @@ public class AccountController {
 		return personalLinkService.rename(authentication.getName(), alias, request.alias());
 	}
 
+	@Operation(summary = "Cuánto le queda a la sesión; la de una computadora vence sola")
+	@ApiResponse(responseCode = "200", description = "Duración de la sesión")
+	@ApiResponse(responseCode = "401", description = "Sin sesión, o la sesión ya venció")
+	@GetMapping(value = "/session", produces = MediaType.APPLICATION_JSON_VALUE)
+	public SessionResponse session(HttpSession session) {
+		return SessionResponse.of(desktopSession.expiresAt(session).orElse(null), desktopSession.now(), desktopSession.getWarning());
+	}
+
+	@Operation(summary = "Extiende la sesión de computadora app.session.desktop-ttl desde ahora")
+	@ApiResponse(responseCode = "200", description = "Sesión extendida (sin límite, no cambia nada)")
+	@ApiResponse(responseCode = "401", description = "Sin sesión, o la sesión ya venció")
+	@PostMapping(value = "/session/extend", produces = MediaType.APPLICATION_JSON_VALUE)
+	public SessionResponse extendSession(HttpSession session) {
+		return SessionResponse.of(desktopSession.extend(session).orElse(null), desktopSession.now(), desktopSession.getWarning());
+	}
+
 	private AccountResponse response(AppUser user) {
-		return AccountResponse.from(user, personalLinkService.namespaceUrl(user.getUsername()));
+		return AccountResponse.from(user, personalLinkService.namespaceUrl(user.getUsername()), desktopSession.now());
 	}
 }

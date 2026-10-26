@@ -39,13 +39,25 @@ class LoginRequestServiceTest {
 	}
 
 	@Test
-	void newRequestIsPendingForTwoMinutesWithAnUnguessableCode() {
+	void newRequestIsPendingForOneMinuteWithAnUnguessableCode() {
 		LoginRequest request = service.create();
 
 		assertThat(request.getCode()).matches("[A-Za-z0-9_-]{43}");
 		assertThat(service.create().getCode()).isNotEqualTo(request.getCode());
 		assertThat(service.poll(request.getCode()))
-				.isEqualTo(new LoginRequestService.Poll(LoginRequestService.State.PENDING, null, NOW.plus(Duration.ofMinutes(2))));
+				.isEqualTo(new LoginRequestService.Poll(LoginRequestService.State.PENDING, null, NOW.plus(Duration.ofMinutes(1))));
+	}
+
+	@Test
+	void discardedCodeCanNoLongerBeApproved() {
+		String old = service.create().getCode();
+		String current = service.create().getCode();
+
+		service.discard(old);
+
+		assertThat(service.poll(old).state()).isEqualTo(LoginRequestService.State.EXPIRED);
+		assertThatThrownBy(() -> service.approve(old, "google-ana")).isInstanceOf(LoginRequestNotFoundException.class);
+		assertThat(service.poll(current).state()).isEqualTo(LoginRequestService.State.PENDING);
 	}
 
 	@Test
@@ -85,7 +97,7 @@ class LoginRequestServiceTest {
 	@Test
 	void approvalGivesTheComputerAFreshWindowToConsumeIt() {
 		String code = service.create().getCode();
-		clock.advance(Duration.ofSeconds(110));
+		clock.advance(Duration.ofSeconds(55));
 		service.approve(code, "google-ana");
 		clock.advance(Duration.ofSeconds(30));
 

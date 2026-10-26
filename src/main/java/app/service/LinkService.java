@@ -41,6 +41,9 @@ public class LinkService {
 	private AliasGenerator aliasGenerator;
 
 	@Autowired
+	private UserService userService;
+
+	@Autowired
 	private Clock clock;
 
 	/** Dominio con el que se arman la URL corta y el QR: nunca sale de la petición (I4, D23). */
@@ -64,7 +67,11 @@ public class LinkService {
 		Instant now = clock.instant();
 		Set<String> discarded = new HashSet<>();
 		for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-			Set<String> taken = transaction.execute(status -> liveAliases(now));
+			Set<String> taken = transaction.execute(status -> {
+				Set<String> unavailable = liveAliases(now);
+				unavailable.addAll(userService.namesInUse(now));
+				return unavailable;
+			});
 			taken.addAll(discarded);
 			String alias = aliasGenerator.generate(taken);
 			discarded.add(alias);
@@ -85,8 +92,12 @@ public class LinkService {
 		throw new AliasUnavailableException(maxAttempts);
 	}
 
-	/** @return el enlace creado, o null si el alias está ocupado por un enlace vigente */
+	/** @return el enlace creado, o null si el alias está ocupado por un enlace vigente o por un usuario */
 	private ShortLink tryCreate(String alias, String url, Instant now) {
+		// Se vuelve a mirar en la transacción del alta: alguien pudo elegir ese nombre después del cálculo.
+		if (userService.isNameInUse(alias, now)) {
+			return null;
+		}
 		ShortLink existing = find(alias);
 		if (existing != null) {
 			if (!existing.isExpired(now)) {

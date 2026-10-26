@@ -33,6 +33,16 @@ public class AppUser {
 	@Column(name = "username_chosen", nullable = false)
 	private boolean usernameChosen;
 
+	/**
+	 * Nombre anterior, reservado para esta cuenta hasta previousUsernameReleasedAt: nadie más puede
+	 * tomarlo y sus enlaces avisan la dirección nueva. Vencido ese instante queda libre.
+	 */
+	@Column(name = "previous_username", length = MAX_USERNAME_LENGTH, unique = true)
+	private String previousUsername;
+
+	@Column(name = "previous_username_released_at")
+	private Instant previousUsernameReleasedAt;
+
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
 
@@ -51,6 +61,23 @@ public class AppUser {
 	public void chooseUsername(String username) {
 		this.username = username;
 		this.usernameChosen = true;
+	}
+
+	/** Cambia de un nombre elegido a otro y deja el actual reservado hasta {@code releasedAt}. */
+	public void rename(String username, Instant releasedAt) {
+		this.previousUsername = this.username;
+		this.previousUsernameReleasedAt = releasedAt;
+		this.username = username;
+	}
+
+	/** @return true si el nombre anterior sigue reservado para esta cuenta en ese instante */
+	public boolean hasReservedPreviousUsername(Instant now) {
+		return previousUsername != null && now.isBefore(previousUsernameReleasedAt);
+	}
+
+	public void releasePreviousUsername() {
+		this.previousUsername = null;
+		this.previousUsernameReleasedAt = null;
 	}
 
 	public void updateEmail(String email) {
@@ -75,6 +102,14 @@ public class AppUser {
 
 	public boolean isUsernameChosen() {
 		return usernameChosen;
+	}
+
+	public String getPreviousUsername() {
+		return previousUsername;
+	}
+
+	public Instant getPreviousUsernameReleasedAt() {
+		return previousUsernameReleasedAt;
 	}
 
 	public Instant getCreatedAt() {

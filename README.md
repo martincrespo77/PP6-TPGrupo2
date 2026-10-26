@@ -27,15 +27,20 @@ Hay dos clientes: la **página web** y la **extensión para Chrome y Firefox**. 
 Con sesión iniciada, cada usuario crea enlaces con el alias que quiera dentro de su nombre, por ejemplo `https://paradigmas6.agustingimenez.ar/ana/facultad`. También duran 60 minutos.
 
 - **Desde el celular:** "Ingresá" → "Ingresá con Google".
-- **Desde la computadora:** "Ingresá" muestra un QR (como WhatsApp Web). Se escanea con el celular, se inicia sesión con Google allí, se toca **Confirmar** y la computadora entra sola. El código vence a los 2 minutos.
+- **Desde la computadora:** "Ingresá" muestra un QR (como WhatsApp Web). Se escanea con el celular, se inicia sesión con Google allí, se toca **Confirmar** y la computadora entra sola. El código se renueva solo cada 60 segundos y el anterior deja de servir.
+- La sesión de la computadora se cierra sola a los 30 minutos; dos minutos antes la página ofrece **Extender sesión**.
 - En el primer ingreso se asigna un nombre aleatorio (`usuario-xxxxxxxx`) que **hay que reemplazar** por uno propio antes de crear enlaces: 3 a 20 letras minúsculas, números o guiones, único.
+- `/{usuario}` es tu página: el acortador personal y el perfil. Si cambiás el nombre, tus enlaces pasan al nuevo y el anterior queda **reservado 10 minutos** para vos (podés volver a él). Mientras tanto, quien abra un enlace con el nombre anterior ve un aviso con la dirección nueva y sigue al destino; después el nombre anterior se libera y deja de funcionar.
 
 | Endpoint | Qué hace |
 | :--- | :--- |
 | `GET /api/v1/me` | Datos de la cuenta (`401` sin sesión) |
-| `PUT /api/v1/me/username` con `{"username": "..."}` | Elige el nombre. `400` si es inválido o reservado, `409` si está ocupado |
-| `POST /api/v1/me/links` con `{"url": "...", "alias": "..."}` | Crea `/{usuario}/{alias}` → `201`. `409` si el alias está vigente o falta elegir el nombre |
-| `GET /{usuario}/{alias}` | `302` mientras está vigente; `404` si venció o no existe |
+| `PUT /api/v1/me/username` con `{"username": "..."}` | Elige o cambia el nombre. `400` si es inválido o reservado, `409` si está ocupado o si el anterior sigue reservado (solo se puede volver a él) |
+| `POST /api/v1/me/links` con `{"url": "...", "alias": "..."}` | Crea `/{usuario}/{alias}` → `201` (sin alias, uno aleatorio). `409` si el alias está vigente o falta elegir el nombre. Con `"reuseExisting": true` renueva el enlace vigente a esa URL → `200` |
+| `PATCH /api/v1/me/links/{alias}` con `{"alias": "..."}` | Cambia el alias de un enlace propio |
+| `GET /api/v1/me/session`, `POST /api/v1/me/session/extend` | Vencimiento de la sesión de la computadora y extensión |
+| `GET /{usuario}` | Página del usuario (acortador y perfil) |
+| `GET /{usuario}/{alias}` | `302` mientras está vigente; `404` si venció o no existe. Con el nombre anterior todavía reservado, página de aviso con la dirección nueva |
 | `GET /api/v1/users/{usuario}/links/{alias}/qr` | PNG del QR del enlace personal |
 | `POST /api/v1/login-requests`, `GET /api/v1/login-requests/current` y `/current/qr` | Ingreso por QR de la computadora: pide el código, consulta el estado y muestra el QR |
 | `POST /api/v1/login-requests/{código}/approve` | El celular, con sesión, aprueba el código → `204` |
@@ -87,7 +92,7 @@ En el VPS la aplicación va detrás de un proxy con HTTPS (Google lo exige fuera
 
 ## Extensión para Chrome y Firefox
 
-La carpeta [`browser-extension/`](browser-extension/) es la extensión (Manifest V3, el mismo código para los dos navegadores). Al tocar su ícono (un eslabón de cadena) **acorta la pestaña activa sin más pasos** y muestra el enlace, el QR, los botones para copiar y descargar el QR, y la fecha y hora de vencimiento. Si la página ya estaba acortada, muestra el mismo enlace y renueva su vigencia por 60 minutos. Si la pestaña ya es un enlace corto del acortador, no lo vuelve a acortar.
+La carpeta [`browser-extension/`](browser-extension/) es la extensión (Manifest V3, el mismo código para los dos navegadores). Al tocar su ícono (un eslabón de cadena) **acorta la pestaña activa sin más pasos** y muestra el enlace, el QR, los botones para copiar y descargar el QR, y la fecha y hora de vencimiento. Si la página ya estaba acortada, muestra el mismo enlace y renueva su vigencia por 60 minutos. Si la pestaña ya es un enlace corto del acortador, no lo vuelve a acortar. Si en ese navegador iniciaste sesión en el acortador y elegiste tu nombre, el enlace queda a tu nombre (`/{usuario}/{alias}`); si no, es público.
 
 Usa el servidor indicado en `config.js`, que es `http://localhost:8080`: **la aplicación tiene que estar levantada**.
 
