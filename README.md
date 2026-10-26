@@ -36,7 +36,7 @@ Con sesión iniciada, cada usuario crea enlaces con el alias que quiera dentro d
 | :--- | :--- |
 | `GET /api/v1/me` | Datos de la cuenta (`401` sin sesión) |
 | `PUT /api/v1/me/username` con `{"username": "..."}` | Elige o cambia el nombre. `400` si es inválido o reservado, `409` si está ocupado o si el anterior sigue reservado (solo se puede volver a él) |
-| `POST /api/v1/me/links` con `{"url": "...", "alias": "..."}` | Crea `/{usuario}/{alias}` → `201` (sin alias, uno aleatorio). `409` si el alias está vigente o falta elegir el nombre. Con `"reuseExisting": true` renueva el enlace vigente a esa URL → `200` |
+| `POST /api/v1/me/links` con `{"url": "...", "alias": "..."}` | Crea `/{usuario}/{alias}` → `201` (sin alias, el más corto libre de tu espacio: `/{usuario}/1`, `/2`, …, como los públicos). `409` si el alias está vigente o falta elegir el nombre. Con `"reuseExisting": true` renueva el enlace vigente a esa URL → `200` |
 | `PATCH /api/v1/me/links/{alias}` con `{"alias": "..."}` | Cambia el alias de un enlace propio |
 | `GET /api/v1/me/session`, `POST /api/v1/me/session/extend` | Vencimiento de la sesión de la computadora y extensión |
 | `GET /{usuario}` | Página del usuario (acortador y perfil) |

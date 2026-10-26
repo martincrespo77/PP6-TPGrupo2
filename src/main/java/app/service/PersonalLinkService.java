@@ -1,7 +1,6 @@
 package app.service;
 
 import app.dto.ShortLinkResponse;
-import app.exception.AliasUnavailableException;
 import app.exception.InvalidAliasException;
 import app.exception.InvalidUrlException;
 import app.exception.LinkNotFoundException;
@@ -11,12 +10,13 @@ import app.mappings.AppUser;
 import app.mappings.PersonalLink;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,15 +34,11 @@ public class PersonalLinkService {
 
 	private static final Pattern ALIAS = Pattern.compile("[a-z0-9-]{1," + PersonalLink.MAX_ALIAS_LENGTH + "}");
 
-	/** Sin i, l, o, 0 ni 1, que se confunden al dictarlos o leerlos en papel. */
-	static final String RANDOM_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
-	static final int RANDOM_LENGTH = 6;
-	private static final int RANDOM_ATTEMPTS = 10;
-
-	private final SecureRandom random = new SecureRandom();
-
 	@Autowired
 	private EntityManager em;
+
+	@Autowired
+	private AliasGenerator aliasGenerator;
 
 	@Autowired
 	private UrlValidator urlValidator;
@@ -60,7 +56,7 @@ public class PersonalLinkService {
 	private Duration ttl;
 
 	/**
-	 * Crea un enlace en el espacio del usuario. Sin alias, genera uno aleatorio libre. Si el alias está
+	 * Crea un enlace en el espacio del usuario. Sin alias, usa el más corto libre (1, 2, …). Si el alias está
 	 * tomado por un enlace vencido, lo reasigna (como D6); si está vigente, falla.
 	 */
 	@Transactional
@@ -70,7 +66,7 @@ public class PersonalLinkService {
 		String requested = generated ? null : normalizeAlias(alias);
 		AppUser owner = requireOwner(googleSubject);
 		Instant now = clock.instant();
-		String normalized = generated ? randomFreeAlias(owner.getUsername(), now) : requested;
+		String normalized = generated ? freeAlias(owner, now) : requested;
 		String shortUrl = shortUrl(owner.getUsername(), normalized);
 		if (shortUrl.equals(url)) {
 			throw new InvalidUrlException("El enlace no puede apuntar a sí mismo");
@@ -134,18 +130,14 @@ public class PersonalLinkService {
 		em.flush();
 	}
 
-	private String randomFreeAlias(String username, Instant now) {
-		for (int attempt = 0; attempt < RANDOM_ATTEMPTS; attempt++) {
-			StringBuilder candidate = new StringBuilder(RANDOM_LENGTH);
-			for (int i = 0; i < RANDOM_LENGTH; i++) {
-				candidate.append(RANDOM_ALPHABET.charAt(random.nextInt(RANDOM_ALPHABET.length())));
-			}
-			PersonalLink existing = find(username, candidate.toString());
-			if (existing == null || existing.isExpired(now)) {
-				return candidate.toString();
-			}
-		}
-		throw new AliasUnavailableException(RANDOM_ATTEMPTS);
+	/** El alias más corto libre en el espacio del usuario, con el mismo generador que los públicos (1, 2, …). */
+	private String freeAlias(AppUser owner, Instant now) {
+		Set<String> live = new HashSet<>(em.createQuery(
+						"select p.alias from PersonalLink p where p.owner = :owner and p.expiresAt > :now", String.class)
+				.setParameter("owner", owner)
+				.setParameter("now", now)
+				.getResultList());
+		return aliasGenerator.generate(live);
 	}
 
 	/** @return la URL destino si el enlace existe y no venció */

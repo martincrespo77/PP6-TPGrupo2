@@ -226,7 +226,7 @@ class AccountAndLoginTest {
 			String body = mvc.perform(post("/api/v1/me/links").with(google("google-ana")).with(csrf())
 							.contentType(MediaType.APPLICATION_JSON).content("{\"url\":\"https://undef.edu.ar\",\"alias\":\"\"}"))
 					.andExpect(status().isCreated())
-					.andExpect(jsonPath("$.alias", matchesPattern("[a-z2-9]{6}")))
+					.andExpect(jsonPath("$.alias").value("1"))
 					.andReturn().getResponse().getContentAsString();
 			String random = body.replaceAll(".*\"alias\":\"([^\"]+)\".*", "$1");
 

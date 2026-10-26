@@ -71,7 +71,7 @@ public class AccountController {
 		return response(userService.chooseUsername(authentication.getName(), request.username()));
 	}
 
-	@Operation(summary = "Crea un enlace /{usuario}/{alias} que vence a los 60 minutos; sin alias, se genera uno aleatorio")
+	@Operation(summary = "Crea un enlace /{usuario}/{alias} que vence a los 60 minutos; sin alias, se usa el más corto libre (1, 2, …)")
 	@ApiResponse(responseCode = "200", description = "Con reuseExisting=true: ya tenías un enlace vigente a esa URL y se renovó 60 minutos")
 	@ApiResponse(responseCode = "201", description = "Enlace creado")
 	@ApiResponse(responseCode = "400", description = "URL o alias inválidos",

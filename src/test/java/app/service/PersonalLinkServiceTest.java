@@ -132,22 +132,23 @@ class PersonalLinkServiceTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = { "", "   " })
-	void withoutAliasGeneratesARandomOne(String alias) {
+	void withoutAliasGetsTheShortestFreeOneLikePublicLinks(String alias) {
 		ShortLinkResponse link = service.create("google-ana", TARGET, alias);
 
-		assertThat(link.alias()).hasSize(PersonalLinkService.RANDOM_LENGTH)
-				.matches("[" + PersonalLinkService.RANDOM_ALPHABET + "]+");
-		assertThat(link.shortUrl()).isEqualTo("https://sho.rt/ana/" + link.alias());
-		assertThat(service.resolve("ana", link.alias())).contains(TARGET);
+		assertThat(link.alias()).isEqualTo("1");
+		assertThat(link.shortUrl()).isEqualTo("https://sho.rt/ana/1");
+		assertThat(service.resolve("ana", "1")).contains(TARGET);
 	}
 
 	@Test
-	void nullAliasAlsoGeneratesOne() {
-		ShortLinkResponse first = service.create("google-ana", TARGET, null);
-		ShortLinkResponse second = service.create("google-ana", TARGET, null);
+	void generatedAliasesCountPerUserAndSkipTheLiveOnes() {
+		db.storeUser("google-beto", "beto", NOW);
+		db.storePersonalLink("ana", "2", "https://viejo.com", NOW.minus(Duration.ofHours(2)), NOW.minus(Duration.ofHours(1)));
+		service.create("google-ana", TARGET, "1");
 
-		assertThat(first.alias()).isNotEqualTo(second.alias());
-		assertThat(db.countPersonalLinks()).isEqualTo(2);
+		assertThat(service.create("google-ana", TARGET, null).alias()).as("el 2 está vencido: se reasigna").isEqualTo("2");
+		assertThat(service.create("google-ana", TARGET, null).alias()).isEqualTo("3");
+		assertThat(service.create("google-beto", TARGET, null).alias()).isEqualTo("1");
 	}
 
 	@Test
