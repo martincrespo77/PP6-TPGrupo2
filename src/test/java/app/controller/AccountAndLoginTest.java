@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -215,6 +216,33 @@ class AccountAndLoginTest {
 					.andExpect(status().isOk())
 					.andReturn().getResponse().getContentAsByteArray();
 			assertThat(QrDecoder.decode(png)).isEqualTo("https://sho.rt/ana/facultad");
+		}
+
+		@Test
+		void linkWithoutAliasGetsARandomOneThatCanBeRenamed() throws Exception {
+			mvc.perform(put("/api/v1/me/username").with(google("google-ana")).with(csrf())
+					.contentType(MediaType.APPLICATION_JSON).content("{\"username\":\"ana\"}"));
+			String body = mvc.perform(post("/api/v1/me/links").with(google("google-ana")).with(csrf())
+							.contentType(MediaType.APPLICATION_JSON).content("{\"url\":\"https://undef.edu.ar\",\"alias\":\"\"}"))
+					.andExpect(status().isCreated())
+					.andExpect(jsonPath("$.alias", matchesPattern("[a-z2-9]{6}")))
+					.andReturn().getResponse().getContentAsString();
+			String random = body.replaceAll(".*\"alias\":\"([^\"]+)\".*", "$1");
+
+			mvc.perform(patch("/api/v1/me/links/" + random).with(google("google-ana"))
+							.contentType(MediaType.APPLICATION_JSON).content("{\"alias\":\"facultad\"}"))
+					.andExpect(status().isForbidden());
+			mvc.perform(patch("/api/v1/me/links/" + random).with(google("google-ana")).with(csrf())
+							.contentType(MediaType.APPLICATION_JSON).content("{\"alias\":\"facultad\"}"))
+					.andExpect(status().isOk())
+					.andExpect(jsonPath("$.shortUrl").value("https://sho.rt/ana/facultad"));
+
+			mvc.perform(get("/ana/facultad"))
+					.andExpect(status().isFound())
+					.andExpect(header().string("Location", "https://undef.edu.ar"));
+			mvc.perform(patch("/api/v1/me/links/" + random).with(google("google-ana")).with(csrf())
+							.contentType(MediaType.APPLICATION_JSON).content("{\"alias\":\"otro\"}"))
+					.andExpect(status().isNotFound());
 		}
 
 		@Test

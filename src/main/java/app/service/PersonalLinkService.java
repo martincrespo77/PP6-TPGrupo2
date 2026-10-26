@@ -1,14 +1,17 @@
 package app.service;
 
 import app.dto.ShortLinkResponse;
+import app.exception.AliasUnavailableException;
 import app.exception.InvalidAliasException;
 import app.exception.InvalidUrlException;
+import app.exception.LinkNotFoundException;
 import app.exception.PersonalAliasTakenException;
 import app.exception.UsernameNotChosenException;
 import app.mappings.AppUser;
 import app.mappings.PersonalLink;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +34,13 @@ public class PersonalLinkService {
 
 	private static final Pattern ALIAS = Pattern.compile("[a-z0-9-]{1," + PersonalLink.MAX_ALIAS_LENGTH + "}");
 
+	/** Sin i, l, o, 0 ni 1, que se confunden al dictarlos o leerlos en papel. */
+	static final String RANDOM_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+	static final int RANDOM_LENGTH = 6;
+	private static final int RANDOM_ATTEMPTS = 10;
+
+	private final SecureRandom random = new SecureRandom();
+
 	@Autowired
 	private EntityManager em;
 
@@ -50,30 +60,22 @@ public class PersonalLinkService {
 	private Duration ttl;
 
 	/**
-	 * Crea un enlace en el espacio del usuario. Si el alias está tomado por un enlace vencido, lo
-	 * reasigna (como D6); si está vigente, falla.
+	 * Crea un enlace en el espacio del usuario. Sin alias, genera uno aleatorio libre. Si el alias está
+	 * tomado por un enlace vencido, lo reasigna (como D6); si está vigente, falla.
 	 */
 	@Transactional
 	public ShortLinkResponse create(String googleSubject, String url, String alias) {
 		urlValidator.validate(url);
-		String normalized = normalizeAlias(alias);
-		AppUser owner = userService.require(googleSubject);
-		if (!owner.isUsernameChosen()) {
-			throw new UsernameNotChosenException();
-		}
+		boolean generated = alias == null || alias.isBlank();
+		String requested = generated ? null : normalizeAlias(alias);
+		AppUser owner = requireOwner(googleSubject);
+		Instant now = clock.instant();
+		String normalized = generated ? randomFreeAlias(owner.getUsername(), now) : requested;
 		String shortUrl = shortUrl(owner.getUsername(), normalized);
 		if (shortUrl.equals(url)) {
 			throw new InvalidUrlException("El enlace no puede apuntar a sí mismo");
 		}
-		Instant now = clock.instant();
-		PersonalLink existing = find(owner.getUsername(), normalized);
-		if (existing != null) {
-			if (!existing.isExpired(now)) {
-				throw new PersonalAliasTakenException(normalized);
-			}
-			em.remove(existing);
-			em.flush();
-		}
+		releaseIfExpired(owner.getUsername(), normalized, now);
 		PersonalLink link = new PersonalLink(owner, normalized, url, now, now.plus(ttl));
 		try {
 			em.persist(link);
@@ -83,6 +85,67 @@ public class PersonalLinkService {
 		}
 		log.info("Enlace personal creado username={} alias={} expira={}", owner.getUsername(), normalized, link.getExpiresAt());
 		return ShortLinkResponse.from(link, shortUrl, qrUrl(owner.getUsername(), normalized), now);
+	}
+
+	/**
+	 * Cambia el alias de un enlace vigente del usuario, sin tocar el destino ni el vencimiento. El alias
+	 * nuevo sigue las mismas reglas que al crear: si lo tiene un enlace vencido se reasigna.
+	 */
+	@Transactional
+	public ShortLinkResponse rename(String googleSubject, String currentAlias, String newAlias) {
+		String normalized = normalizeAlias(newAlias);
+		AppUser owner = requireOwner(googleSubject);
+		Instant now = clock.instant();
+		String current = currentAlias == null ? "" : currentAlias.toLowerCase(Locale.ROOT);
+		PersonalLink link = Optional.ofNullable(find(owner.getUsername(), current))
+				.filter(found -> !found.isExpired(now))
+				.orElseThrow(() -> new LinkNotFoundException(current));
+		if (!normalized.equals(current)) {
+			releaseIfExpired(owner.getUsername(), normalized, now);
+			link.changeAlias(normalized);
+			try {
+				em.flush();
+			} catch (PersistenceException e) {
+				throw new PersonalAliasTakenException(normalized);
+			}
+			log.info("Alias personal cambiado username={} {} -> {}", owner.getUsername(), current, normalized);
+		}
+		return ShortLinkResponse.from(link, shortUrl(owner.getUsername(), normalized), qrUrl(owner.getUsername(), normalized), now);
+	}
+
+	private AppUser requireOwner(String googleSubject) {
+		AppUser owner = userService.require(googleSubject);
+		if (!owner.isUsernameChosen()) {
+			throw new UsernameNotChosenException();
+		}
+		return owner;
+	}
+
+	/** Libera el alias si lo tiene un enlace vencido; si lo tiene uno vigente, falla. */
+	private void releaseIfExpired(String username, String alias, Instant now) {
+		PersonalLink existing = find(username, alias);
+		if (existing == null) {
+			return;
+		}
+		if (!existing.isExpired(now)) {
+			throw new PersonalAliasTakenException(alias);
+		}
+		em.remove(existing);
+		em.flush();
+	}
+
+	private String randomFreeAlias(String username, Instant now) {
+		for (int attempt = 0; attempt < RANDOM_ATTEMPTS; attempt++) {
+			StringBuilder candidate = new StringBuilder(RANDOM_LENGTH);
+			for (int i = 0; i < RANDOM_LENGTH; i++) {
+				candidate.append(RANDOM_ALPHABET.charAt(random.nextInt(RANDOM_ALPHABET.length())));
+			}
+			PersonalLink existing = find(username, candidate.toString());
+			if (existing == null || existing.isExpired(now)) {
+				return candidate.toString();
+			}
+		}
+		throw new AliasUnavailableException(RANDOM_ATTEMPTS);
 	}
 
 	/** @return la URL destino si el enlace existe y no venció */

@@ -62,6 +62,11 @@ public class PersonalLink {
 		return !now.isBefore(expiresAt);
 	}
 
+	/** Cambia solo el alias: el destino y el vencimiento no se tocan. */
+	public void changeAlias(String alias) {
+		this.alias = alias;
+	}
+
 	public Long getId() {
 		return id;
 	}

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import app.dto.ShortLinkResponse;
 import app.exception.InvalidAliasException;
 import app.exception.InvalidUrlException;
+import app.exception.LinkNotFoundException;
 import app.exception.PersonalAliasTakenException;
 import app.exception.UsernameNotChosenException;
 import app.support.IntegrationTest;
@@ -124,9 +125,93 @@ class PersonalLinkServiceTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = { "", "con espacio", "con/barra", "punto.final", "abcdefghijklmnopqrstuvwxyz1234567" })
+	@ValueSource(strings = { "con espacio", "con/barra", "punto.final", "abcdefghijklmnopqrstuvwxyz1234567" })
 	void rejectsInvalidAliases(String alias) {
 		assertThatThrownBy(() -> service.create("google-ana", TARGET, alias)).isInstanceOf(InvalidAliasException.class);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "", "   " })
+	void withoutAliasGeneratesARandomOne(String alias) {
+		ShortLinkResponse link = service.create("google-ana", TARGET, alias);
+
+		assertThat(link.alias()).hasSize(PersonalLinkService.RANDOM_LENGTH)
+				.matches("[" + PersonalLinkService.RANDOM_ALPHABET + "]+");
+		assertThat(link.shortUrl()).isEqualTo("https://sho.rt/ana/" + link.alias());
+		assertThat(service.resolve("ana", link.alias())).contains(TARGET);
+	}
+
+	@Test
+	void nullAliasAlsoGeneratesOne() {
+		ShortLinkResponse first = service.create("google-ana", TARGET, null);
+		ShortLinkResponse second = service.create("google-ana", TARGET, null);
+
+		assertThat(first.alias()).isNotEqualTo(second.alias());
+		assertThat(db.countPersonalLinks()).isEqualTo(2);
+	}
+
+	@Test
+	void renameKeepsTheDestinationAndTheExpiration() {
+		ShortLinkResponse created = service.create("google-ana", TARGET, null);
+		clock.set(NOW.plus(Duration.ofMinutes(10)));
+
+		ShortLinkResponse renamed = service.rename("google-ana", created.alias(), "Facultad");
+
+		assertThat(renamed.alias()).isEqualTo("facultad");
+		assertThat(renamed.shortUrl()).isEqualTo("https://sho.rt/ana/facultad");
+		assertThat(renamed.expiresAt()).isEqualTo(EXPIRES);
+		assertThat(renamed.secondsRemaining()).isEqualTo(3000);
+		assertThat(service.resolve("ana", "facultad")).contains(TARGET);
+		assertThat(service.resolve("ana", created.alias())).isEmpty();
+		assertThat(db.countPersonalLinks()).isEqualTo(1);
+	}
+
+	@Test
+	void renameToTheSameAliasChangesNothing() {
+		service.create("google-ana", TARGET, "facultad");
+
+		assertThat(service.rename("google-ana", "facultad", "facultad").alias()).isEqualTo("facultad");
+		assertThat(service.resolve("ana", "facultad")).contains(TARGET);
+	}
+
+	@Test
+	void renameToALiveAliasFails() {
+		service.create("google-ana", TARGET, "facultad");
+		service.create("google-ana", "https://otro.com", "cv");
+
+		assertThatThrownBy(() -> service.rename("google-ana", "cv", "facultad")).isInstanceOf(PersonalAliasTakenException.class);
+		assertThat(service.resolve("ana", "cv")).contains("https://otro.com");
+	}
+
+	@Test
+	void renameCanTakeTheAliasOfAnExpiredLink() {
+		db.storePersonalLink("ana", "facultad", "https://viejo.com", NOW.minus(Duration.ofHours(2)), NOW.minus(Duration.ofHours(1)));
+		service.create("google-ana", TARGET, "cv");
+
+		service.rename("google-ana", "cv", "facultad");
+
+		assertThat(service.resolve("ana", "facultad")).contains(TARGET);
+		assertThat(db.countPersonalLinks()).isEqualTo(1);
+	}
+
+	@Test
+	void renameRejectsUnknownExpiredOrOtherUsersLinks() {
+		db.storeUser("google-beto", "beto", NOW);
+		service.create("google-beto", TARGET, "cv");
+		db.storePersonalLink("ana", "viejo", TARGET, NOW.minus(Duration.ofHours(2)), NOW);
+
+		assertThatThrownBy(() -> service.rename("google-ana", "nada", "nuevo")).isInstanceOf(LinkNotFoundException.class);
+		assertThatThrownBy(() -> service.rename("google-ana", "viejo", "nuevo")).isInstanceOf(LinkNotFoundException.class);
+		assertThatThrownBy(() -> service.rename("google-ana", "cv", "nuevo")).isInstanceOf(LinkNotFoundException.class);
+		assertThat(service.resolve("beto", "cv")).contains(TARGET);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "", "con espacio", "punto.final" })
+	void renameRejectsInvalidAliases(String alias) {
+		service.create("google-ana", TARGET, "facultad");
+
+		assertThatThrownBy(() -> service.rename("google-ana", "facultad", alias)).isInstanceOf(InvalidAliasException.class);
 	}
 
 	@Test
