@@ -43,6 +43,10 @@ public class ShortLink {
 		return !now.isBefore(expiresAt);
 	}
 
+	public void extendUntil(Instant expiresAt) {
+		this.expiresAt = expiresAt;
+	}
+
 	public String getAlias() {
 		return alias;
 	}

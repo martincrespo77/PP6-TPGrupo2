@@ -87,6 +87,41 @@ class LinkControllerTest {
 		}
 
 		@Test
+		void withoutReuseTheSameUrlTwiceCreatesTwoLinks() throws Exception {
+			for (String alias : new String[] { "1", "2" }) {
+				mvc.perform(post("/api/v1/links").contentType(MediaType.APPLICATION_JSON).content(body(DRIVE)))
+						.andExpect(status().isCreated())
+						.andExpect(jsonPath("$.shortUrl").value("https://sho.rt/" + alias));
+			}
+		}
+
+		@Test
+		void withReuseAnAlreadyShortenedUrlIsRenewedAndReturnedWith200() throws Exception {
+			String reuse = "{\"url\":\"" + DRIVE + "\",\"reuseExisting\":true}";
+			mvc.perform(post("/api/v1/links").contentType(MediaType.APPLICATION_JSON).content(reuse))
+					.andExpect(status().isCreated())
+					.andExpect(jsonPath("$.alias").value("1"));
+			clock.set(NOW.plus(Duration.ofMinutes(30)));
+
+			mvc.perform(post("/api/v1/links").contentType(MediaType.APPLICATION_JSON).content(reuse))
+					.andExpect(status().isOk())
+					.andExpect(header().doesNotExist("Location"))
+					.andExpect(jsonPath("$.*", hasSize(7)))
+					.andExpect(jsonPath("$.alias").value("1"))
+					.andExpect(jsonPath("$.expiresAt").value("2026-10-08T13:30:00Z"))
+					.andExpect(jsonPath("$.secondsRemaining").value(3600));
+			assertThat(db.count()).isEqualTo(1);
+		}
+
+		@Test
+		void withReuseAnInvalidUrlStillReturns400() throws Exception {
+			mvc.perform(post("/api/v1/links").contentType(MediaType.APPLICATION_JSON)
+							.content("{\"url\":\"ftp://ejemplo.com\",\"reuseExisting\":true}"))
+					.andExpect(status().isBadRequest())
+					.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+		}
+
+		@Test
 		void tc33_shortUrlComesFromBaseUrlAndNeverFromRequestHeaders() throws Exception {
 			mvc.perform(post("/api/v1/links").contentType(MediaType.APPLICATION_JSON).content(body(DRIVE))
 							.header("Host", "evil.example")

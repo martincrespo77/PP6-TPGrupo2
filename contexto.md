@@ -4,7 +4,7 @@
 **Cátedra:** Paradigmas de Programación VI – 5to Año – Ingeniería en Informática (FIE)
 **Equipo:** Martín Crespo (`dev/martin`) · Sofía Ramirez (`dev/sofia`) · Agustín Gimenez (`dev/agustin`)
 **Repositorio:** https://github.com/martincrespo77/PP6-TPGrupo2
-**Versión del documento:** v0.3 – entrega de la Etapa 1 (12/10/2026). Versiones anteriores: v0.2 – estructura alineada al proyecto de referencia del profesor (11/10/2026); v0.1 – consolidación inicial (07/10/2026)
+**Versión del documento:** v0.5 – Etapa 2: usuarios con espacio de nombres e ingreso por QR (26/10/2026). Versiones anteriores: v0.4 – Etapa 2: alias mínimos y extensión automática; v0.3 – entrega de la Etapa 1 (12/10/2026); v0.2 – estructura alineada al proyecto de referencia del profesor (11/10/2026); v0.1 – consolidación inicial (07/10/2026)
 
 > **Qué es este documento.** Es la **base única de contexto** del proyecto. Consolida la consigna (`TP_PP6_v1.0.md`), la minuta con las respuestas del cliente y las tres propuestas individuales (`ANALISIS_Y_ESPECIFICACION_ETAPA_1.md` de Martín, `propuesta-etapa1_agus.md` de Agustín y `propuesta-etapa1_sofia.md` de Sofía). Lo leen los integrantes y **cualquier asistente de IA** antes de trabajar. Si algo no está acá, no está decidido.
 
@@ -13,6 +13,8 @@
 > **Qué cambió en la v0.2.** El backend se reestructuró con los paquetes del proyecto de referencia del profesor (`app.mappings`, `app.service`, `app.dto`, `app.controller`, `app.exception`) y sin `Repository` ni puertos: ver D47, D31, D33, §8 y §14.1. **El comportamiento externo no cambió**: mismos endpoints, respuestas, documento OpenAPI, web y extensión. Las respuestas del Cliente (§3), las invariantes (§7), el contrato (§10) y los casos de prueba (§15.2) siguen iguales. La versión anterior (arquitectura hexagonal) está en la rama `dev/agustin`. El grupo decidió entregar esta versión (12/10/2026).
 
 > **Qué cambió en la v0.3.** La web y la extensión tienen una estética nueva (mismos textos y estados). En la web, la dirección original queda en el campo después de acortar. La extensión ya no acorta al abrirse: lo hace al apretar ACORTAR (D43), y Copiar y Descargar QR son botones de ícono. La extensión apunta a `http://localhost:8080` (D44).
+
+> **Qué cambió en la v0.4 (Etapa 2, `docs/comentarios_revision.md`).** El Cliente pidió alias mínimos sin requisito de seguridad: el alias deja de ser aleatorio y pasa a ser **el menor número libre** escrito con el alfabeto `0123456789abcdefghjkmnpqrstuvwxyz` (`/1`, `/2`, …, `/z`, `/10`…), reutilizando el de un enlace vencido o borrado antes de crecer (D8, D9, D11). La extensión **vuelve a acortar al tocar el ícono, sin botón** (D43), y si la página ya tenía un enlace vigente muestra ese mismo enlace y **lo renueva 60 minutos** (`reuseExisting` en `POST /api/v1/links`, `200`); esto modifica C3 y C5 solo para la extensión: la web sigue creando un enlace nuevo por pedido. La extensión no acorta una pestaña que ya es un enlace corto propio y tiene un ícono nuevo (eslabón de cadena). Los enlaces de 5 caracteres creados antes siguen redirigiendo hasta vencer.
 
 ---
 
@@ -148,11 +150,11 @@ Obtenidas en la elucidación (minuta registrada por Sofía). **Tienen prioridad 
 
 | # | Decisión | Motivo | Origen |
 |---|---|---|---|
-| D8 | **5 caracteres**, alfabeto de **minúsculas y dígitos sin caracteres ambiguos** (sin `0`, `o`, `1`, `l`, `i`): 31 caracteres, 31⁵ ≈ **28,6 millones** de combinaciones. Largo y alfabeto configurables (`app.alias.length`, `app.alias.alphabet`) | C2 ("fácil de recordar"): corto, sin confusiones al dictarlo o copiarlo a mano. Sobra espacio para el tráfico esperado (C15) | [S] (base de [A]) |
-| D9 | Generación aleatoria con `SecureRandom`, en la clase `AliasGenerator` | Clase aparte de `LinkService`: un alias personalizado o numérico se resuelve ahí, sin tocar el resto | [M][A][S], ajustada por D47 |
+| D8 | *(v0.4)* **Alias secuencial de largo mínimo:** el menor número n ≥ 1 escrito en base 33 con el alfabeto `0123456789abcdefghjkmnpqrstuvwxyz` (sin `i`, `l`, `o`, que se confunden con `1` y `0`): `1`…`9`, `a`…`z`, `10`… Hay 32 alias de un carácter y 1056 de dos. Alfabeto configurable (`app.alias.alphabet`); con solo dígitos, los alias son números decimales | El Cliente pidió URLs lo más cortas posible y aclaró que no hay requisito de seguridad (alias predecibles aceptados) | [Cliente, Etapa 2] (reemplaza 5 caracteres aleatorios) |
+| D9 | *(v0.4)* `AliasGenerator.generate(taken)` devuelve **el menor alias que no está en `taken`** ni es palabra reservada. `LinkService` le pasa los alias **vigentes** (`expiresAt > now`): el de un enlace vencido o borrado vuelve a estar disponible sin cola ni tabla extra | Búsqueda del menor libre en lugar de una cola de reutilizables: no agrega tablas ni sincronización, y con el tráfico esperado (C15) los vigentes son pocos | [Cliente, Etapa 2] |
 | D10 | **Palabras reservadas** configurables (`app.alias.reserved`): `api`, `admin`, `static`, `assets`, `error`, `expired`, `health`, `actuator`, `swagger`, `favicon.ico`, `index`. El generador nunca devuelve una | C4. Con el alfabeto de D8 y largo 5 ninguna es generable hoy, pero la regla protege ante un cambio de largo/alfabeto y ante el futuro alias personalizado | [S] |
-| D11 | Colisión: se genera otro alias, **máximo 10 intentos** (`app.alias.max-attempts`); agotados, **`503`** con mensaje claro | Evita un bucle infinito | [M][A][S] |
-| D12 | **Misma URL dos veces → dos alias distintos**, cada uno con sus 60 minutos | C3 | [M][A][S][C3] |
+| D11 | Colisión: se genera otro alias, **máximo 10 intentos** (`app.alias.max-attempts`); agotados, **`503`** con mensaje claro. *(v0.4)* Con alias secuenciales, dos pedidos simultáneos eligen el mismo menor libre: la PK rechaza al segundo, que reintenta con el siguiente. Resiste hasta 10 creaciones exactamente simultáneas | Evita un bucle infinito | [M][A][S] |
+| D12 | **Misma URL dos veces → dos alias distintos**, cada uno con sus 60 minutos. *(v0.4)* Excepción: con `reuseExisting: true` (la extensión), si la URL ya tiene un enlace vigente se devuelve ese mismo, renovado hasta `now + app.link.ttl` (`200`); si hay varios, el más reciente | C3; la excepción la pidió el Cliente en la Etapa 2 | [M][A][S][C3] |
 | D13 | **Bucle sobre sí mismo:** si la `shortUrl` a generar es igual a la URL destino, se descarta ese alias y se genera otro | C1 acepta URLs del propio dominio; esto evita el único caso de redirección infinita | [S] |
 | D14 | Cadena A → B con B vencido: se acepta; el destino final deja de ser alcanzable. Se documenta | Consecuencia esperable de C1 | [S] |
 | D15 | El alias en la ruta se restringe con la regex `[A-Za-z0-9]{1,16}` | No choca con `/api/**` ni con archivos estáticos (`/app.js` tiene punto) | [M][A][S] |
@@ -203,10 +205,21 @@ Obtenidas en la elucidación (minuta registrada por Sofía). **Tienen prioridad 
 | D40 | Botón **Copiar** manual en web y extensión; sin copia automática | C11 | [M][A][S][C11] |
 | D41 | Si el enlace vence con la pantalla abierta, la tarjeta pasa a estado **"vencido"** (enlace y QR deshabilitados) | Deja claro que el enlace ya no sirve | [S] |
 | D42 | Extensión **WebExtension Manifest V3**, un solo código para Chrome y Firefox (`browser_specific_settings.gecko`) | Un solo mantenimiento | [M][A][S] |
-| D43 | Al abrir el popup se muestra la dirección de **la pestaña activa**, sin pegar nada, y se acorta **al apretar ACORTAR** (no automáticamente al abrir). En pestañas no http/https: botón **ACORTAR deshabilitado** con el aviso "Esta página no se puede acortar (solo http/https)" | C10. Revisada en la v0.3: acortar al abrir creaba enlaces que nadie iba a usar cuando alguien abría la extensión solo para ver qué era. Costo: es un clic más que el "con solo tocarlo" de la consigna | [S][C10] |
+| D43 | *(v0.4)* Al tocar el ícono se **acorta la pestaña activa automáticamente**, sin botón, con `reuseExisting: true` (D12): si ya estaba acortada se muestra el enlace existente con su nueva fecha y hora de vencimiento. En pestañas no http/https, o si la pestaña ya es un enlace corto del acortador (mismo origen que `config.js` y ruta `/{alias}`), solo se muestra un aviso y no se llama a la API | C10 y consigna ("con solo tocarlo"). Revierte la v0.3 a pedido del Cliente; la renovación evita crear un enlace nuevo cada vez que se abre la extensión en la misma página | [S][C10], revisada por el Cliente en la Etapa 2 |
 | D44 | La URL de la API de la extensión es una **constante en `config.js`** (`http://localhost:8080`), sin página de opciones | C10 ("no configurable por ahora"). Al pasar al VPS se cambia y se reempaqueta | [S][C10] |
 | D45 | CORS habilitado en `/api/**` para orígenes `chrome-extension://…` y `moz-extension://…` | La extensión llama desde otro origen | [M][A][S] |
 | D46 | Navegadores: Chrome y Firefox actuales de escritorio | C16 (los define el equipo) | [S] |
+
+### 4.6.1. Usuarios e ingreso *(v0.5, Etapa 2)*
+
+| # | Decisión | Motivo | Origen |
+|---|---|---|---|
+| D48 | Cada usuario tiene su **espacio de nombres** `/{usuario}/{alias}` (entidad `PersonalLink`, único por `(dueño, alias)`). Los enlaces apuntan al usuario, no a su nombre: si lo cambia, lo siguen. Duran 60 minutos como los públicos (a futuro el usuario podrá elegir la duración) y un alias vencido se puede volver a usar | Pedido del Cliente en la Etapa 2 | Cliente |
+| D49 | **Nombre de usuario único**, 3 a 20 caracteres (`[a-z0-9-]`, sin guion en los extremos), guardado en minúsculas. En el primer ingreso se asigna uno aleatorio `usuario-xxxxxxxx`; nadie puede elegir un nombre con ese prefijo, así que **hay que elegir uno propio antes de crear enlaces** (`409` si no). Hay nombres reservados (`app.user.reserved`) | Pedido del Cliente: "es aleatorio pero tiene que cambiarlo al iniciar sesión". La unicidad la garantiza la base (índice único) | Cliente |
+| D50 | El **celular** inicia sesión con **Google (OAuth2/OIDC, scopes `openid email`)**. Las credenciales salen solo de `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` (I5) | Pedido del Cliente; Spring Security ya resuelve el flujo y la validación del token | Cliente |
+| D51 | La **computadora** ingresa con un **QR, como WhatsApp Web**: pide un código (32 bytes aleatorios, vence a los 2 minutos), muestra el QR de `/l/{código}`, el celular lo abre, inicia sesión con Google y **confirma**. La computadora consulta cada 2 segundos y, al aprobarse, recibe la sesión una sola vez (UPDATE condicional) con un id de sesión nuevo | El código vive en la sesión de la computadora que lo pidió: alguien que fotografía el QR no puede usarlo para entrar. La confirmación explícita evita aprobar un QR ajeno sin darse cuenta | Equipo |
+| D52 | **CSRF** con token en la cookie `XSRF-TOKEN`, que las páginas devuelven en `X-XSRF-TOKEN`. `POST /api/v1/links` sigue sin sesión ni token (la extensión, D45). La API responde `401` sin sesión; las páginas llevan al login de Google | Con sesiones por cookie, CSRF es obligatorio | Equipo |
+| D53 | En producción se sirve por **HTTPS en el VPS detrás de un proxy** (`SERVER_FORWARD_HEADERS_STRATEGY=native`, `APP_BASE_URL=https://paradigmas6.agustingimenez.ar`) y la consola JPQL se apaga (`HQL_CONSOLE_ENABLED=false`) | Google exige HTTPS en el redirect URI fuera de `localhost`; la consola expone y modifica toda la base | Cliente (VPS) |
 
 ### 4.7. Estructura del código
 
@@ -329,7 +342,7 @@ app
 │   ├── LinkService    acortar, resolver y borrar vencidos; EntityManager + JPQL
 │   ├── QrService      QR de un enlace vigente (ZXing)
 │   ├── UrlValidator   reglas de la URL destino
-│   └── AliasGenerator alias aleatorio, saltea palabras reservadas
+│   └── AliasGenerator menor alias libre (secuencial), saltea palabras reservadas
 └── exception/         InvalidUrlException, InvalidQrSizeException, LinkNotFoundException,
                        AliasUnavailableException, GlobalExceptionHandler (ProblemDetail RFC 7807)
 
@@ -501,9 +514,11 @@ Se documenta con **springdoc-openapi / Swagger UI**. Fechas en **UTC, ISO-8601**
 ### 11.2. Extensión Chrome y Firefox (Manifest V3)
 
 - `manifest.json` Manifest V3 (`action`, `permissions: ["activeTab"]`, `host_permissions` hacia el backend) con `browser_specific_settings.gecko`. Un solo código.
-- Al abrir el popup toma la URL de la pestaña activa (`tabs.query({ active: true, currentWindow: true })`) y la muestra:
-  - si es `http`/`https`, habilita **ACORTAR**; al apretarlo llama a `POST /api/v1/links` y muestra enlace, QR, hora de vencimiento y los botones de ícono **Copiar** y **Descargar QR**, con el mismo estado "vencido" que la web (D43);
-  - si no lo es (`chrome://`, `about:`, nueva pestaña), muestra **ACORTAR** deshabilitado y el aviso "Esta página no se puede acortar (solo http/https)".
+- Al tocar el ícono toma la URL de la pestaña activa (`tabs.query({ active: true, currentWindow: true })`) y la muestra *(v0.4)*:
+  - si es `http`/`https`, la acorta en el acto con `POST /api/v1/links` y `reuseExisting: true`, y muestra enlace, QR, fecha y hora de vencimiento y los botones de ícono **Copiar** y **Descargar QR**, con el mismo estado "vencido" que la web. Con `200` avisa que la página ya estaba acortada y que el enlace se renovó 60 minutos (D12, D43);
+  - si ya es un enlace corto del acortador, muestra "Esta página ya es un enlace corto de nuestro acortador." sin llamar a la API;
+  - si no es `http`/`https` (`chrome://`, `about:`, nueva pestaña), muestra el aviso "Esta página no se puede acortar (solo http/https)".
+- Íconos PNG de 16, 24, 32, 48 y 128 px en `icons/` (eslabón de cadena blanco sobre los violetas de la web), generados con `scripts\generate-extension-icons.ps1`.
 - La URL de la API es una constante en `config.js` (`http://localhost:8080`).
 - Se instala en **modo desarrollador** (Chrome) y como **complemento temporal** (Firefox). Se entrega como carpeta; el `.zip` se genera con `scripts\package-extension.ps1`.
 
@@ -525,8 +540,7 @@ Se documenta con **springdoc-openapi / Swagger UI**. Fechas en **UTC, ISO-8601**
 |---|---|---|
 | `app.base-url` | `http://localhost:8080` (en el VPS, `APP_BASE_URL`) | D23, D34 |
 | `app.link.ttl` | `60m` | D1 |
-| `app.alias.length` | `5` | D8 |
-| `app.alias.alphabet` | `abcdefghjkmnpqrstuvwxyz23456789` (31 caracteres) | D8 |
+| `app.alias.alphabet` | `0123456789abcdefghjkmnpqrstuvwxyz` (33 caracteres; el primero hace de cero). `app.alias.length` se eliminó en la v0.4 | D8 |
 | `app.alias.reserved` | `api,admin,static,assets,error,expired,health,actuator,swagger,favicon.ico,index` | D10 |
 | `app.alias.max-attempts` | `10` | D11 |
 | `app.cleanup.cron` | diario (por ejemplo `0 0 3 * * *`) | D5 |

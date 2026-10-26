@@ -2,6 +2,7 @@ package app.service;
 
 import app.exception.InvalidQrSizeException;
 import app.exception.LinkNotFoundException;
+import app.mappings.PersonalLink;
 import app.mappings.ShortLink;
 import com.google.zxing.BarcodeFormat;
 import com.google.zxing.EncodeHintType;
@@ -14,6 +15,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -38,15 +40,38 @@ public class QrService {
 	@Autowired
 	private LinkService linkService;
 
+	@Autowired
+	private PersonalLinkService personalLinkService;
+
+	@Autowired
+	private LoginRequestService loginRequestService;
+
 	/** @return PNG con el QR de la URL corta del enlace */
 	public byte[] qrFor(String alias, int size) {
-		if (size < MIN_SIZE || size > MAX_SIZE) {
-			throw new InvalidQrSizeException(MIN_SIZE, MAX_SIZE);
-		}
+		checkSize(size);
 		ShortLink link = linkService.findLive(alias)
 				.orElseThrow(() -> new LinkNotFoundException(alias));
 		String content = linkService.shortUrl(link.getAlias());
 		return generatePng(content, size);
+	}
+
+	/** @return PNG con el QR de la URL de un enlace personal vigente */
+	public byte[] qrForPersonal(String username, String alias, int size) {
+		checkSize(size);
+		PersonalLink link = personalLinkService.findLive(username, alias)
+				.orElseThrow(() -> new LinkNotFoundException(alias));
+		return generatePng(personalLinkService.shortUrl(username.toLowerCase(Locale.ROOT), link.getAlias()), size);
+	}
+
+	/** @return PNG con el QR que escanea el celular para aprobar el ingreso de la computadora */
+	public byte[] qrForLogin(String code) {
+		return generatePng(loginRequestService.approvalUrl(code), DEFAULT_SIZE);
+	}
+
+	private static void checkSize(int size) {
+		if (size < MIN_SIZE || size > MAX_SIZE) {
+			throw new InvalidQrSizeException(MIN_SIZE, MAX_SIZE);
+		}
 	}
 
 	/** @return PNG cuadrado de {@code size} × {@code size} píxeles que codifica {@code content} */

@@ -7,6 +7,7 @@ import app.service.LinkService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,11 +27,11 @@ class ApplicationTest {
 	@Test
 	void contextLoadsWithTheDefaultConfiguration() {
 		assertThat(env.getProperty("app.link.ttl")).isEqualTo("60m");
-		assertThat(env.getProperty("app.alias.alphabet")).hasSize(31).doesNotContain("0", "o", "1", "l", "i");
+		assertThat(env.getProperty("app.alias.alphabet")).hasSize(33).startsWith("0123456789").doesNotContain("o", "l", "i");
 		assertThat(env.getProperty("app.alias.reserved")).contains("api", "admin", "favicon.ico");
 		assertThat(env.getProperty("app.alias.max-attempts")).isEqualTo("10");
 		assertThat(env.getProperty("app.cleanup.cron")).isEqualTo("0 0 3 * * *");
-		assertThat(aliasGenerator.generate()).hasSize(5);
+		assertThat(aliasGenerator.generate(Set.of())).isEqualTo("1");
 	}
 
 	@Test

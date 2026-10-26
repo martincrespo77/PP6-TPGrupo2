@@ -2,11 +2,22 @@
 	"manifest_version": 3,
 	"name": "Acortador de enlaces – PP6",
 	"short_name": "Acortador PP6",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"description": "Acorta la página que estás viendo: enlace corto de 60 minutos con su código QR.",
+	"icons": {
+		"16": "icons/icon-16.png",
+		"32": "icons/icon-32.png",
+		"48": "icons/icon-48.png",
+		"128": "icons/icon-128.png"
+	},
 	"action": {
 		"default_title": "Acortar esta página",
-		"default_popup": "popup.html"
+		"default_popup": "popup.html",
+		"default_icon": {
+			"16": "icons/icon-16.png",
+			"24": "icons/icon-24.png",
+			"32": "icons/icon-32.png"
+		}
 	},
 	"permissions": ["activeTab"],
 	"host_permissions": [

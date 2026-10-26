@@ -2,14 +2,17 @@ package app.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.imageio.ImageIO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -60,10 +63,16 @@ class BrowserExtensionFilesTest {
 	void popupLoadsTheConfigBeforeTheScriptAndHasNoInlineCode() throws Exception {
 		String popup = read("popup.html");
 
-		assertThat(popup).contains("<html lang=\"es\">", "role=\"status\"", ">ACORTAR<", "href=\"popup.css\"");
+		assertThat(popup).contains("<html lang=\"es\">", "role=\"status\"", "href=\"popup.css\"");
 		assertThat(popup.indexOf("src=\"config.js\"")).isPositive().isLessThan(popup.indexOf("src=\"popup.js\""));
 		assertThat(popup).doesNotContainPattern("<script>|<script\\s+(?!src=)|\\son\\w+=\"");
 		assertThat(DIR.resolve("popup.css")).exists();
+	}
+
+	@Test
+	void popupShortensOnOpenWithoutAShortenButton() throws Exception {
+		assertThat(read("popup.html")).doesNotContain("ACORTAR", "id=\"shorten\"");
+		assertThat(read("popup.js")).contains("await shorten(url)").doesNotContain("addEventListener('click', shorten");
 	}
 
 	@Test
@@ -72,5 +81,30 @@ class BrowserExtensionFilesTest {
 				.contains("PP6_CONFIG.apiBaseUrl", "'/api/v1/links'", "secondsRemaining",
 						"Esta página no se puede acortar (solo http/https)")
 				.doesNotContain("http://", "https://");
+	}
+
+	@Test
+	void scriptReusesAnExistingLinkAndNeverShortensOneOfOurShortLinks() throws Exception {
+		assertThat(read("popup.js"))
+				.contains("reuseExisting: true", "response.status === 200", "isOwnShortLink(url)",
+						"/^\\/[A-Za-z0-9]{1,16}$/");
+	}
+
+	@Test
+	void everyDeclaredIconIsAPngOfItsDeclaredSize() throws Exception {
+		JsonNode manifest = manifest();
+		List<String> declared = new ArrayList<>();
+		for (JsonNode icons : List.of(manifest.path("icons"), manifest.path("action").path("default_icon"))) {
+			for (Map.Entry<String, JsonNode> icon : icons.properties()) {
+				String size = icon.getKey();
+				String file = icon.getValue().asString();
+				declared.add(size);
+				BufferedImage image = ImageIO.read(DIR.resolve(file).toFile());
+				assertThat(image).as(file).isNotNull();
+				assertThat(image.getWidth()).as(file).isEqualTo(Integer.parseInt(size));
+				assertThat(image.getHeight()).as(file).isEqualTo(Integer.parseInt(size));
+			}
+		}
+		assertThat(declared).contains("16", "24", "32", "48", "128");
 	}
 }

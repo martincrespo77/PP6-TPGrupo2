@@ -8,8 +8,10 @@ import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Reglas de negocio de los enlaces: acortar, resolver y borrar vencidos. Es dueño de sus consultas. */
+/** Reglas de negocio de los enlaces: acortar, renovar, resolver y borrar vencidos. Es dueño de sus consultas. */
 @Service
 public class LinkService {
 
@@ -52,14 +54,20 @@ public class LinkService {
 	private int maxAttempts;
 
 	/**
-	 * Acorta una URL. No es @Transactional a propósito: después de una violación de PK la sesión de
-	 * Hibernate queda inutilizable, así que cada intento corre en su propia transacción.
+	 * Acorta una URL con el alias más corto libre. No es @Transactional a propósito: después de una
+	 * violación de PK la sesión de Hibernate queda inutilizable, así que cada intento corre en su
+	 * propia transacción. Si dos pedidos simultáneos eligen el mismo alias, la PK rechaza al segundo,
+	 * que reintenta con el siguiente libre (I2).
 	 */
 	public ShortLinkResponse shorten(String url) {
 		urlValidator.validate(url);
 		Instant now = clock.instant();
+		Set<String> discarded = new HashSet<>();
 		for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-			String alias = aliasGenerator.generate();
+			Set<String> taken = transaction.execute(status -> liveAliases(now));
+			taken.addAll(discarded);
+			String alias = aliasGenerator.generate(taken);
+			discarded.add(alias);
 			if (shortUrl(alias).equals(url)) {
 				continue;
 			}
@@ -67,7 +75,7 @@ public class LinkService {
 				ShortLink created = transaction.execute(status -> tryCreate(alias, url, now));
 				if (created != null) {
 					log.info("Enlace creado alias={} expira={}", alias, created.getExpiresAt());
-					return ShortLinkResponse.from(created, shortUrl(alias), qrUrl(alias), now);
+					return response(created, now);
 				}
 			} catch (EntityExistsException | ConstraintViolationException e) {
 				log.debug("Alias {} tomado por otra transacción; se reintenta", alias);
@@ -97,6 +105,38 @@ public class LinkService {
 
 	ShortLink find(String alias) {
 		return em.find(ShortLink.class, alias);
+	}
+
+	/** Los vencidos no cuentan: su alias se puede reasignar aunque la fila siga (D6). */
+	private Set<String> liveAliases(Instant now) {
+		return new HashSet<>(em.createQuery("select s.alias from ShortLink s where s.expiresAt > :now", String.class)
+				.setParameter("now", now)
+				.getResultList());
+	}
+
+	/**
+	 * Si la URL ya tiene un enlace vigente, lo renueva por app.link.ttl desde ahora (lo usa la
+	 * extensión). Con varios vigentes para la misma URL, renueva el más reciente.
+	 *
+	 * @return el enlace renovado, o vacío si la URL no tiene ninguno vigente
+	 */
+	@Transactional
+	public Optional<ShortLinkResponse> renew(String url) {
+		urlValidator.validate(url);
+		Instant now = clock.instant();
+		Optional<ShortLink> link = em.createQuery(
+						"select s from ShortLink s where s.originalUrl = :url and s.expiresAt > :now order by s.createdAt desc",
+						ShortLink.class)
+				.setParameter("url", url)
+				.setParameter("now", now)
+				.setMaxResults(1)
+				.getResultStream()
+				.findFirst();
+		link.ifPresent(existing -> {
+			existing.extendUntil(now.plus(ttl));
+			log.info("Enlace renovado alias={} expira={}", existing.getAlias(), existing.getExpiresAt());
+		});
+		return link.map(existing -> response(existing, now));
 	}
 
 	/** @return la URL destino si el alias existe y no venció */
@@ -139,6 +179,10 @@ public class LinkService {
 
 	public String shortUrl(String alias) {
 		return baseUrl() + "/" + alias;
+	}
+
+	private ShortLinkResponse response(ShortLink link, Instant now) {
+		return ShortLinkResponse.from(link, shortUrl(link.getAlias()), qrUrl(link.getAlias()), now);
 	}
 
 	private String qrUrl(String alias) {
