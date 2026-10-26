@@ -1,11 +1,13 @@
 package app.controller;
 
 import app.service.LinkService;
+import app.service.PersonalLinkService;
 import io.swagger.v3.oas.annotations.Hidden;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.CacheControl;
@@ -17,7 +19,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 /**
- * GET /{alias}: 302 al destino o 404 con la página "Este enlace expiró o no existe" (D7, D20).
+ * GET /{alias} y GET /{usuario}/{alias}: 302 al destino o 404 con la página "Este enlace expiró o no
+ * existe" (D7, D20).
  * El patrón no admite puntos ni barras, así que no choca con /api/** ni con archivos estáticos (D15).
  */
 @Hidden
@@ -29,13 +32,26 @@ public class RedirectController {
 	@Autowired
 	private LinkService linkService;
 
+	@Autowired
+	private PersonalLinkService personalLinkService;
+
 	private final byte[] notAvailablePage = load(NOT_AVAILABLE_PAGE);
 
 	@GetMapping("/{alias:[A-Za-z0-9]{1,16}}")
 	public ResponseEntity<byte[]> redirect(@PathVariable String alias) {
-		return linkService.resolve(alias)
-				.map(target -> ResponseEntity.status(HttpStatus.FOUND)
-						.location(URI.create(target))
+		return redirectOrNotAvailable(linkService.resolve(alias));
+	}
+
+	/** Enlace personal. Dos segmentos: no choca con los alias públicos de /{alias}. */
+	@GetMapping("/{username:[A-Za-z0-9-]{3,20}}/{alias:[A-Za-z0-9-]{1,32}}")
+	public ResponseEntity<byte[]> redirectPersonal(@PathVariable String username, @PathVariable String alias) {
+		return redirectOrNotAvailable(personalLinkService.resolve(username, alias));
+	}
+
+	private ResponseEntity<byte[]> redirectOrNotAvailable(Optional<String> target) {
+		return target
+				.map(url -> ResponseEntity.status(HttpStatus.FOUND)
+						.location(URI.create(url))
 						.cacheControl(CacheControl.noStore())
 						.<byte[]>build())
 				.orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)

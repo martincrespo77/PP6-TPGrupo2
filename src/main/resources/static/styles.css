@@ -162,6 +162,19 @@ button.dark:hover:not(:disabled) { background: #2b3340; }
 footer { margin-top: 2rem; font-size: .85rem; text-align: center; }
 footer a { color: inherit; }
 
+.hero .muted + .muted { margin-top: .5rem; }
+.hero a, .login-alt a { color: var(--link); }
+
+/* Cuenta e ingreso. */
+.hint { margin: -.4rem 0 .9rem; font-size: .9rem; }
+.link-form { margin-top: 1.75rem; }
+.link-form > .field { margin-bottom: .9rem; }
+.sub-label { display: block; margin-bottom: .5rem; font-size: .95rem; }
+.namespace { flex: none; color: var(--muted); font-size: .95rem; }
+.login-alt { margin-top: 1.5rem; font-size: .9rem; }
+.link-button { padding: 0; background: none; color: inherit; font-size: inherit; font-weight: inherit; text-decoration: underline; }
+.link-button:hover:not(:disabled) { background: none; color: var(--link); }
+
 /* Página "Este enlace expiró o no existe". */
 .notice { text-align: center; padding: 2.5rem 1.75rem; }
 .notice h1 { font-size: 1.7rem; }

@@ -1,5 +1,7 @@
 package app.support;
 
+import app.mappings.AppUser;
+import app.mappings.PersonalLink;
 import app.mappings.ShortLink;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
@@ -29,7 +31,35 @@ public class TestDb {
 		return transaction.execute(s -> em.createQuery("select count(s) from ShortLink s", Long.class).getSingleResult());
 	}
 
+	/** Usuario con el nombre ya elegido. */
+	public AppUser storeUser(String googleSubject, String username, Instant createdAt) {
+		return transaction.execute(s -> {
+			AppUser user = new AppUser(googleSubject, googleSubject + "@gmail.com", "usuario-" + googleSubject, createdAt);
+			user.chooseUsername(username);
+			em.persist(user);
+			return user;
+		});
+	}
+
+	public void storePersonalLink(String username, String alias, String url, Instant createdAt, Instant expiresAt) {
+		transaction.executeWithoutResult(s -> {
+			AppUser owner = em.createQuery("select u from AppUser u where u.username = :username", AppUser.class)
+					.setParameter("username", username)
+					.getSingleResult();
+			em.persist(new PersonalLink(owner, alias, url, createdAt, expiresAt));
+		});
+	}
+
+	public long countPersonalLinks() {
+		return transaction.execute(s -> em.createQuery("select count(p) from PersonalLink p", Long.class).getSingleResult());
+	}
+
 	public void deleteAll() {
-		transaction.executeWithoutResult(s -> em.createQuery("delete from ShortLink").executeUpdate());
+		transaction.executeWithoutResult(s -> {
+			em.createQuery("delete from ShortLink").executeUpdate();
+			em.createQuery("delete from PersonalLink").executeUpdate();
+			em.createQuery("delete from LoginRequest").executeUpdate();
+			em.createQuery("delete from AppUser").executeUpdate();
+		});
 	}
 }

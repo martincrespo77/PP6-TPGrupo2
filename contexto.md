@@ -4,7 +4,7 @@
 **Cátedra:** Paradigmas de Programación VI – 5to Año – Ingeniería en Informática (FIE)
 **Equipo:** Martín Crespo (`dev/martin`) · Sofía Ramirez (`dev/sofia`) · Agustín Gimenez (`dev/agustin`)
 **Repositorio:** https://github.com/martincrespo77/PP6-TPGrupo2
-**Versión del documento:** v0.3 – entrega de la Etapa 1 (12/10/2026). Versiones anteriores: v0.2 – estructura alineada al proyecto de referencia del profesor (11/10/2026); v0.1 – consolidación inicial (07/10/2026)
+**Versión del documento:** v0.5 – Etapa 2: usuarios con espacio de nombres e ingreso por QR (26/10/2026). Versiones anteriores: v0.4 – Etapa 2: alias mínimos y extensión automática; v0.3 – entrega de la Etapa 1 (12/10/2026); v0.2 – estructura alineada al proyecto de referencia del profesor (11/10/2026); v0.1 – consolidación inicial (07/10/2026)
 
 > **Qué es este documento.** Es la **base única de contexto** del proyecto. Consolida la consigna (`TP_PP6_v1.0.md`), la minuta con las respuestas del cliente y las tres propuestas individuales (`ANALISIS_Y_ESPECIFICACION_ETAPA_1.md` de Martín, `propuesta-etapa1_agus.md` de Agustín y `propuesta-etapa1_sofia.md` de Sofía). Lo leen los integrantes y **cualquier asistente de IA** antes de trabajar. Si algo no está acá, no está decidido.
 
@@ -209,6 +209,17 @@ Obtenidas en la elucidación (minuta registrada por Sofía). **Tienen prioridad 
 | D44 | La URL de la API de la extensión es una **constante en `config.js`** (`http://localhost:8080`), sin página de opciones | C10 ("no configurable por ahora"). Al pasar al VPS se cambia y se reempaqueta | [S][C10] |
 | D45 | CORS habilitado en `/api/**` para orígenes `chrome-extension://…` y `moz-extension://…` | La extensión llama desde otro origen | [M][A][S] |
 | D46 | Navegadores: Chrome y Firefox actuales de escritorio | C16 (los define el equipo) | [S] |
+
+### 4.6.1. Usuarios e ingreso *(v0.5, Etapa 2)*
+
+| # | Decisión | Motivo | Origen |
+|---|---|---|---|
+| D48 | Cada usuario tiene su **espacio de nombres** `/{usuario}/{alias}` (entidad `PersonalLink`, único por `(dueño, alias)`). Los enlaces apuntan al usuario, no a su nombre: si lo cambia, lo siguen. Duran 60 minutos como los públicos (a futuro el usuario podrá elegir la duración) y un alias vencido se puede volver a usar | Pedido del Cliente en la Etapa 2 | Cliente |
+| D49 | **Nombre de usuario único**, 3 a 20 caracteres (`[a-z0-9-]`, sin guion en los extremos), guardado en minúsculas. En el primer ingreso se asigna uno aleatorio `usuario-xxxxxxxx`; nadie puede elegir un nombre con ese prefijo, así que **hay que elegir uno propio antes de crear enlaces** (`409` si no). Hay nombres reservados (`app.user.reserved`) | Pedido del Cliente: "es aleatorio pero tiene que cambiarlo al iniciar sesión". La unicidad la garantiza la base (índice único) | Cliente |
+| D50 | El **celular** inicia sesión con **Google (OAuth2/OIDC, scopes `openid email`)**. Las credenciales salen solo de `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` (I5) | Pedido del Cliente; Spring Security ya resuelve el flujo y la validación del token | Cliente |
+| D51 | La **computadora** ingresa con un **QR, como WhatsApp Web**: pide un código (32 bytes aleatorios, vence a los 2 minutos), muestra el QR de `/l/{código}`, el celular lo abre, inicia sesión con Google y **confirma**. La computadora consulta cada 2 segundos y, al aprobarse, recibe la sesión una sola vez (UPDATE condicional) con un id de sesión nuevo | El código vive en la sesión de la computadora que lo pidió: alguien que fotografía el QR no puede usarlo para entrar. La confirmación explícita evita aprobar un QR ajeno sin darse cuenta | Equipo |
+| D52 | **CSRF** con token en la cookie `XSRF-TOKEN`, que las páginas devuelven en `X-XSRF-TOKEN`. `POST /api/v1/links` sigue sin sesión ni token (la extensión, D45). La API responde `401` sin sesión; las páginas llevan al login de Google | Con sesiones por cookie, CSRF es obligatorio | Equipo |
+| D53 | En producción se sirve por **HTTPS en el VPS detrás de un proxy** (`SERVER_FORWARD_HEADERS_STRATEGY=native`, `APP_BASE_URL=https://paradigmas6.agustingimenez.ar`) y la consola JPQL se apaga (`HQL_CONSOLE_ENABLED=false`) | Google exige HTTPS en el redirect URI fuera de `localhost`; la consola expone y modifica toda la base | Cliente (VPS) |
 
 ### 4.7. Estructura del código
 

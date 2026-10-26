@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="robots" content="noindex">
+	<title>Ingresar – Acortador de enlaces PP6</title>
+	<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+	<main>
+		<header class="hero">
+			<h1>Ingresar</h1>
+			<p class="muted">Escaneá el código con la cámara del celular e ingresá con tu cuenta de Google.</p>
+		</header>
+
+		<div class="panel notice">
+			<img id="login-qr" class="qr" width="256" height="256" alt="Código QR para ingresar desde el celular" hidden>
+			<p id="status" class="status" role="status" aria-live="polite"></p>
+			<p id="countdown" class="muted expires"></p>
+			<button id="retry" type="button" hidden>Generar otro código</button>
+			<p class="muted login-alt">¿Estás en el celular? <a href="/oauth2/authorization/google">Ingresá con Google</a></p>
+		</div>
+
+		<footer class="muted"><a href="/">Volver al acortador</a></footer>
+	</main>
+	<script src="/session.js"></script>
+	<script src="/login.js"></script>
+</body>
+</html>

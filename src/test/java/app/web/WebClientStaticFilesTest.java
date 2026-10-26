@@ -56,8 +56,25 @@ class WebClientStaticFilesTest {
 	@Test
 	void scriptCallsTheApiWithARelativePath() throws Exception {
 		assertThat(fetch("/app.js"))
-				.contains("'/api/v1/links'", "secondsRemaining")
+				.contains("'/api/v1/links'")
 				.doesNotContain("http://", "https://");
+	}
+
+	@Test
+	void resultCardIsSharedAndUsesTheServerCountdown() throws Exception {
+		String index = fetch("/index.html");
+		assertThat(index.indexOf("src=\"result-card.js\"")).isPositive().isLessThan(index.indexOf("src=\"app.js\""));
+		assertThat(fetch("/result-card.js")).contains("secondsRemaining").doesNotContain("http://", "https://");
+	}
+
+	@Test
+	void sessionPagesUseAbsolutePathsAndSendTheCsrfToken() throws Exception {
+		for (String page : new String[] { "/login.html", "/cuenta.html", "/confirmar-ingreso.html" }) {
+			assertThat(fetch(page)).as(page)
+					.contains("<html lang=\"es\">", "role=\"status\"", "href=\"/styles.css\"", "src=\"/session.js\"");
+		}
+		assertThat(fetch("/session.js")).contains("XSRF-TOKEN", "X-XSRF-TOKEN");
+		assertThat(fetch("/login.html")).contains("href=\"/oauth2/authorization/google\"");
 	}
 
 	@Test
